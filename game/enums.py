@@ -27,6 +27,12 @@ class Resource(IntEnum):
     Sheep = 4
     Wheat = 5
 
+class DevelopmentCard(IntEnum):
+    Knight = 0
+    VictoryPoint = 1
+    YearOfPlenty = 2
+    RoadBuilding = 3
+    Monopoly = 4
 
 TILE_ADJACENCY_INDS = [
     [[1, "R"], [3, "BL"], [4, "BR"]],

@@ -20,6 +20,8 @@ game.board.insert_city(PlayerId.Blue, game.board.corners[0])
 game.board.insert_settlement(PlayerId.Orange, game.board.corners[20], initial_placement=True)
 game.board.insert_city(PlayerId.Orange, game.board.corners[20])
 
+game.board.insert_road(PlayerId.Orange, game.board.corners[20].corner_neighbours[0][1])
+
 display = Display(game)
 display.render()
 

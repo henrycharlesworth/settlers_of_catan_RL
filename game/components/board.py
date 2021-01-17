@@ -84,17 +84,22 @@ class Board(object):
         np.random.shuffle(self.harbours)
 
         self.tiles = tuple([Tile(terrain_order[i], -1, i) for i in range(19)])
+        self.value_to_tiles = {}
         num_ind = 0
         for i in range(19):
             if self.tiles[self.NUMBER_PLACEMENT_INDS[i]].terrain == Terrain.Desert:
                 self.tiles[self.NUMBER_PLACEMENT_INDS[i]].value = 7
                 self.tiles[self.NUMBER_PLACEMENT_INDS[i]].contains_robber = True
+                self.robber_tile = self.tiles[self.NUMBER_PLACEMENT_INDS[i]]
             else:
                 self.tiles[self.NUMBER_PLACEMENT_INDS[i]].value = number_order[num_ind]
+                self.value_to_tiles[number_order[num_ind]] = self.value_to_tiles.get(number_order[num_ind], []) + \
+                    [self.tiles[self.NUMBER_PLACEMENT_INDS[i]]]
                 num_ind += 1
         self.corners = tuple([Corner(id = i) for i in range(54)])
         self.edges = tuple([Edge(id = i) for i in range(72)])
         corner_ind = 0; edge_ind = 0
+
         for tile_ind in range(19):
             for corner_location in self.tiles[tile_ind].corners.keys():
                 prev_info = PREV_CORNER_LOOKUP[corner_location]
@@ -184,3 +189,51 @@ class Board(object):
             return building
         else:
             raise ValueError("Cannot place city here!")
+
+    def insert_road(self, player, edge):
+        if edge.can_place_road(player):
+            edge.insert_road(player)
+        else:
+            raise ValueError("Cannot place road here!")
+
+    def get_available_settlement_locations(self, player, initial_round=False):
+        available_locations = np.zeros((len(self.corners),), dtype=np.int)
+        if initial_round == False:
+            if player.resources[Resource.Wood] > 0 and player.resources[Resource.Sheep] > 0 and \
+                player.resources[Resource.Brick] > 0 and player.resources[Resource.Wheat] > 0:
+                pass
+            else:
+                return available_locations
+        for i, corner in self.corners:
+            if corner.can_place_settlement(player.id, initial_placement=initial_round):
+                available_locations[i] = 1
+        return available_locations
+
+    def get_available_city_locations(self, player):
+        available_locations = np.zeros((len(self.corners),), dtype=np.int)
+        if player.resources[Resource.Ore] >= 3 and player.resources[Resource.Wheat] >= 2:
+            pass
+        else:
+            return available_locations
+        for i, corner in self.corners:
+            if corner.building is not None and (corner.building.type == BuildingType.Settlement \
+                and corner.building.owner == player.id):
+                available_locations[i] = 1
+        return available_locations
+
+    def get_available_road_locations(self, player, initial_round=False):
+        available_locations = np.zeros((len(self.edges),), dtype=np.int)
+        if initial_round == False:
+            if player.resources[Resource.Wood] > 0 and player.resources[Resource.Brick] > 0:
+                pass
+            else:
+                return available_locations
+        for i, edge in self.edges:
+            if edge.can_place_road(player.id):
+                available_locations[i] = 1
+        return available_locations
+
+    def move_robber(self, tile):
+        self.robber_tile.contains_robber = False
+        tile.contains_robber = True
+        self.robber_tile = tile

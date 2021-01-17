@@ -113,6 +113,8 @@ class Display(object):
         self.token_images = {key: pygame.transform.scale(pygame.image.load(os.path.join(*self.image_path, val)),
                                                            (self.token_dim, self.token_dim)) for key, val in
                                self.token_image_paths.items()}
+        self.robber_image = pygame.transform.scale(pygame.image.load(os.path.join(*self.image_path,
+                                        "value_tokens/token_robber.png")), (self.token_dim, self.token_dim))
         self.harbour_image_paths = {
             Resource.Brick: "harbours/harbour_brick.png",
             Resource.Wheat: "harbours/harbour_wheat.png",
@@ -147,6 +149,13 @@ class Display(object):
         self.construct_outer_board_polygon()
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         self.BACKGROUND_COLOUR = (25, 105, 158)
+        self.road_colours = {
+            PlayerId.White: (255, 255, 255),
+            PlayerId.Red: (255, 0, 0),
+            PlayerId.Blue: (0, 255, 0),
+            PlayerId.Orange: (255, 153, 51)
+        }
+        self.road_width = 15
         self.screen.fill(self.BACKGROUND_COLOUR)
 
     def construct_outer_board_polygon(self):
@@ -187,9 +196,14 @@ class Display(object):
 
         for i, tile in enumerate(self.game.board.tiles):
             self.render_tile(tile, self.tile_pos[i][0], self.tile_pos[i][1])
+            if tile.contains_robber:
+                self.render_robber(self.tile_pos[i][0] + (self.hexagon_width / 2.0) - (self.token_dim / 2.0),
+                                   self.tile_pos[i][1] + (self.hexagon_height / 2.0) + (self.token_dim / 2.0))
             if tile.value != 7:
                 self.render_token(tile.value, self.tile_pos[i][0] + (self.hexagon_width / 2.0) - (self.token_dim / 2.0),
                                   self.tile_pos[i][1] + (self.hexagon_height / 2.0) - (self.token_dim / 2.0))
+        for edge in self.game.board.edges:
+            self.render_edge(edge)
         for corner in self.game.board.corners:
             self.render_corner(corner)
 
@@ -198,6 +212,9 @@ class Display(object):
 
     def render_token(self, value, x, y):
         self.screen.blit(self.token_images[value], (x, y))
+
+    def render_robber(self, x, y):
+        self.screen.blit(self.robber_image, (x, y))
 
     def render_corner(self, corner):
         pygame.draw.circle(self.screen, pygame.Color("blue"), self.corner_pos[corner.id], 5)
@@ -210,6 +227,12 @@ class Display(object):
                 self.screen.blit(self.city_images[corner.building.owner],
                                  (self.corner_pos[corner.id][0] - (self.building_width / 2.0),
                                   self.corner_pos[corner.id][1] - (self.building_height / 2.0)))
+
+    def render_edge(self, edge):
+        if edge.road is not None:
+            colour = self.road_colours[edge.road]
+            pygame.draw.line(self.screen, pygame.Color(colour), self.corner_pos[edge.corner_1.id],
+                             self.corner_pos[edge.corner_2.id], self.road_width)
 
     def render_harbours(self):
         for i, harbour in enumerate(self.game.board.harbours):

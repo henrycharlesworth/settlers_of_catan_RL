@@ -15,6 +15,7 @@ class Player(object):
             Resource.Ore: 0,
             Resource.Sheep: 0
         }
+        self.harbours = {}
         self.longest_road = 0
         self.hidden_cards = []
         self.visible_cards = []

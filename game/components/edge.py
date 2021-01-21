@@ -31,9 +31,8 @@ class Edge(object):
                 for corner in [self.corner_1, self.corner_2]:
                     for next_corner in corner.corner_neighbours:
                         if next_corner[1] is not None:
-                            if next_corner[1] is not None:
-                                if next_corner[1].player == player:
-                                    return True
+                            if next_corner[1].road == player:
+                                return True
         return False
 
     def insert_road(self, player: PlayerId):

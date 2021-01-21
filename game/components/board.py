@@ -174,9 +174,11 @@ class Board(object):
                     self.corner_egde_identification_map[corner.id, n_corner[0].id] = n_corner[1].id
 
     def insert_settlement(self, player, corner, initial_placement = False):
-        if corner.can_place_settlement(player, initial_placement=initial_placement):
-            building = Building(BuildingType.Settlement, player, corner)
+        if corner.can_place_settlement(player.id, initial_placement=initial_placement):
+            building = Building(BuildingType.Settlement, player.id, corner)
             corner.insert_building(building)
+            if corner.harbour is not None:
+                player.harbours[corner.harbour.resource] = corner.harbour
             return building
         else:
             raise ValueError("Cannot place settlement here.")

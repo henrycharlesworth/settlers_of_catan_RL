@@ -2,15 +2,17 @@ import pygame
 import os
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
+from tkinter import messagebox, Tk
 
-from game.enums import Terrain, Resource, PlayerId, BuildingType
+from game.enums import Terrain, Resource, PlayerId, BuildingType, ActionTypes
 from game.enums import TILE_NEIGHBOURS, HARBOUR_CORNER_AND_EDGES
 
 class Display(object):
-    def __init__(self, game):
+    def __init__(self, game, interactive=False):
         self.game = game
+        self.interactive = interactive
 
-        self.hexagon_side_len = 82.25 * 1.2
+        self.hexagon_side_len = 82.25 * 1.0
         self.hexagon_height = int(2 * self.hexagon_side_len)
         self.hexagon_width = int(np.sqrt(3) * self.hexagon_side_len)
 
@@ -24,9 +26,9 @@ class Display(object):
         self.building_height = int(151 * self.building_scale)
         self.building_width = int(129 * self.building_scale)
 
-        screen_width, screen_height = 1500, 1200
+        screen_width, screen_height = 1800, 1100
 
-        self.first_tile_pos = (250, 200)
+        self.first_tile_pos = (250, 300)
 
         self.scaled_tile_pos = {}
         self.tile_pos = {}
@@ -145,18 +147,27 @@ class Display(object):
                                                               (self.building_width, self.building_height)) for key, val
                                   in self.city_image_paths.items()}
 
+        self.top_menu = pygame.image.load(os.path.join(*self.image_path, "menu/top_header.png"))
+
         pygame.init()
+        pygame.font.init()
+        self.top_menu_font = pygame.font.SysFont('Arial', 45)
         self.construct_outer_board_polygon()
         self.screen = pygame.display.set_mode((screen_width, screen_height))
+        pygame.display.set_caption("Settlers of Catan RL environment")
         self.BACKGROUND_COLOUR = (25, 105, 158)
         self.road_colours = {
             PlayerId.White: (255, 255, 255),
             PlayerId.Red: (255, 0, 0),
-            PlayerId.Blue: (0, 255, 0),
+            PlayerId.Blue: (0, 0, 255),
             PlayerId.Orange: (255, 153, 51)
         }
-        self.road_width = 15
+        self.ROAD_WIDTH = 15
+        self.CORNER_RADIUS = 5
         self.screen.fill(self.BACKGROUND_COLOUR)
+
+        if self.interactive:
+            self.run_event_loop()
 
     def construct_outer_board_polygon(self):
         base_positions = np.array([self.scaled_corner_pos[corner.id] for corner in self.game.board.corners \
@@ -207,6 +218,31 @@ class Display(object):
         for corner in self.game.board.corners:
             self.render_corner(corner)
 
+        self.render_top_menu()
+
+    def render_top_menu(self):
+        player = self.game.players[self.game.players_go]
+        pygame.draw.rect(self.screen, self.road_colours[player.id], (221, 21, 170, 90))
+        self.screen.blit(self.top_menu, (0,0))
+        vps = player.victory_points
+        vp_text = self.top_menu_font.render(str(int(vps)), False, (0,0,0))
+        self.screen.blit(vp_text, (267, 109))
+
+        wood_text = self.top_menu_font.render(str(int(player.resources[Resource.Wood])), False, (0,0,0))
+        self.screen.blit(wood_text, (445,109))
+
+        brick_text = self.top_menu_font.render(str(int(player.resources[Resource.Brick])), False, (0, 0, 0))
+        self.screen.blit(brick_text, (625, 109))
+
+        sheep_text = self.top_menu_font.render(str(int(player.resources[Resource.Sheep])), False, (0, 0, 0))
+        self.screen.blit(sheep_text, (791, 109))
+
+        wheat_text = self.top_menu_font.render(str(int(player.resources[Resource.Wheat])), False, (0, 0, 0))
+        self.screen.blit(wheat_text, (965, 109))
+
+        ore_text = self.top_menu_font.render(str(int(player.resources[Resource.Ore])), False, (0, 0, 0))
+        self.screen.blit(ore_text, (1139, 106))
+
     def render_tile(self, tile, x, y):
         self.screen.blit(self.terrain_images[tile.terrain], (x, y))
 
@@ -217,7 +253,7 @@ class Display(object):
         self.screen.blit(self.robber_image, (x, y))
 
     def render_corner(self, corner):
-        pygame.draw.circle(self.screen, pygame.Color("blue"), self.corner_pos[corner.id], 5)
+        pygame.draw.circle(self.screen, pygame.Color("blue"), self.corner_pos[corner.id], self.CORNER_RADIUS)
         if corner.building is not None:
             if corner.building.type == BuildingType.Settlement:
                 self.screen.blit(self.settlement_images[corner.building.owner],
@@ -232,7 +268,7 @@ class Display(object):
         if edge.road is not None:
             colour = self.road_colours[edge.road]
             pygame.draw.line(self.screen, pygame.Color(colour), self.corner_pos[edge.corner_1.id],
-                             self.corner_pos[edge.corner_2.id], self.road_width)
+                             self.corner_pos[edge.corner_2.id], self.ROAD_WIDTH)
 
     def render_harbours(self):
         for i, harbour in enumerate(self.game.board.harbours):
@@ -272,3 +308,81 @@ class Display(object):
                              harbour_pos, 3)
             self.screen.blit(self.harbour_images[harbour.resource], (harbour_pos[0] - self.token_dim/2.0,
                                                                      harbour_pos[1] - self.token_dim/2.0))
+
+    def draw_invisible_edges(self):
+        self.invisible_edges = []
+        for edge in self.game.board.edges:
+            line = pygame.draw.line(self.screen, pygame.Color((0,0,0,255)), self.corner_pos[edge.corner_1.id],
+                                    self.corner_pos[edge.corner_2.id], self.ROAD_WIDTH)
+            self.invisible_edges.append(line)
+
+    def run_event_loop(self):
+        run = True
+        while run:
+            pygame.time.delay(50)
+            Tk().wm_withdraw()
+            self.screen.fill(self.BACKGROUND_COLOUR)
+            self.draw_invisible_edges()
+            self.render_board()
+
+            mouse_click = False
+            over_corner = False
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    run = False
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    mouse_click = True
+
+            players_go = self.game.players[self.game.players_go]
+            mouse_pos = pygame.mouse.get_pos()
+            for corner in self.game.board.corners:
+                if corner.building is None:
+                    corner_pos = self.corner_pos[corner.id]
+                    if (corner_pos[0] - mouse_pos[0])**2 + (corner_pos[1] - mouse_pos[1])**2 <= (2*self.CORNER_RADIUS)**2:
+                        pygame.draw.circle(self.screen, pygame.Color("blue"), self.corner_pos[corner.id],
+                                           2*self.CORNER_RADIUS)
+                        over_corner = True
+                        if mouse_click:
+                            if corner.can_place_settlement(players_go, self.game.initial_placement_phase):
+                                if self.game.can_buy_settlement(players_go):
+                                    action = {
+                                        "type": ActionTypes.PlaceSettlement,
+                                        "corner": corner.id
+                                    }
+                                    if self.game.validate_action(action):
+                                        self.game.apply_action(action)
+                                        self.render_corner(corner)
+                                    else:
+                                        messagebox.showinfo('Error', 'Action validation failed.')
+                                else:
+                                    messagebox.showinfo('Error', 'Cannot afford a settlement.')
+                            else:
+                                messagebox.showinfo('Error', 'Cannot place a settlement here.')
+
+            for i, edge in enumerate(self.game.board.edges):
+                if edge.road is None:
+                    if self.invisible_edges[i].collidepoint(mouse_pos) and over_corner == False:
+                        pygame.draw.line(self.screen, pygame.Color((0, 0, 0)),
+                                                self.corner_pos[edge.corner_1.id],
+                                                self.corner_pos[edge.corner_2.id], self.ROAD_WIDTH)
+                        if mouse_click:
+                            if edge.can_place_road(players_go.id):
+                                if self.game.can_buy_road(players_go):
+                                    action = {
+                                        "type": ActionTypes.PlaceRoad,
+                                        "edge": edge.id
+                                    }
+                                    if self.game.validate_action(action):
+                                        self.game.apply_action(action)
+                                        self.render_edge(edge)
+                                    else:
+                                        messagebox.showinfo('Error', 'Action validation failed.')
+                                else:
+                                    messagebox.showinfo('Error', 'Cannot afford a road.')
+                            else:
+                                messagebox.showinfo('Error', 'Cannot place a road here.')
+
+
+
+            pygame.display.update()

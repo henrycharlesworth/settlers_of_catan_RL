@@ -34,6 +34,20 @@ class DevelopmentCard(IntEnum):
     RoadBuilding = 3
     Monopoly = 4
 
+class ActionTypes(IntEnum):
+    PlaceSettlement = 0
+    PlaceRoad = 1
+    UpgradeToCity = 2
+    BuyDevelopmentCard = 3
+    PlayDevelopmentCard = 4
+    HarbourTrade = 5
+    ProposeTrade = 6
+    CounterOffer = 7
+    AcceptOffer = 8
+    MoveRobber = 9
+    RollDice = 10
+    EndTurn = 11
+
 TILE_ADJACENCY_INDS = [
     [[1, "R"], [3, "BL"], [4, "BR"]],
     [[0, "L"], [2, "R"], [4, "BL"], [5, "BR"]],

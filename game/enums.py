@@ -40,13 +40,13 @@ class ActionTypes(IntEnum):
     UpgradeToCity = 2
     BuyDevelopmentCard = 3
     PlayDevelopmentCard = 4
-    HarbourTrade = 5
+    ExchangeResource = 5
     ProposeTrade = 6
-    CounterOffer = 7
-    AcceptOffer = 8
-    MoveRobber = 9
-    RollDice = 10
-    EndTurn = 11
+    RespondToOffer = 7
+    MoveRobber = 8
+    RollDice = 9
+    EndTurn = 10
+    StealResource = 11
 
 TILE_ADJACENCY_INDS = [
     [[1, "R"], [3, "BL"], [4, "BR"]],

@@ -1,5 +1,6 @@
 import pygame
 import os
+import sys
 import copy
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
@@ -7,6 +8,10 @@ from tkinter import messagebox, Tk
 
 from game.enums import Terrain, Resource, PlayerId, BuildingType, ActionTypes, DevelopmentCard
 from game.enums import TILE_NEIGHBOURS, HARBOUR_CORNER_AND_EDGES
+
+from ui.sftext.sftext import SFText
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sftext/'))
 
 def draw_polygon_alpha(surface, color, points):
     lx, ly = zip(*points)
@@ -225,7 +230,6 @@ class Display(object):
             Resource.Wheat: [1608, 456, development_card_res_box_width, development_card_res_box_height],
             Resource.Ore: [1664, 456, development_card_res_box_width, development_card_res_box_height]
         }
-        self.active_development_res_boxes = []
 
         self.harbour_trade_res_boxes = {
             Resource.Wood: [989, 767, development_card_res_box_width, development_card_res_box_height],
@@ -234,7 +238,6 @@ class Display(object):
             Resource.Wheat: [1172, 767, development_card_res_box_width, development_card_res_box_height],
             Resource.Ore: [1233, 767, development_card_res_box_width, development_card_res_box_height]
         }
-        self.active_harbour_trade_res = []
 
         self.harbour_receive_res_boxes = {
             Resource.Wood: [989, 840, development_card_res_box_width, development_card_res_box_height],
@@ -243,7 +246,6 @@ class Display(object):
             Resource.Wheat: [1172, 840, development_card_res_box_width, development_card_res_box_height],
             Resource.Ore: [1233, 840, development_card_res_box_width, development_card_res_box_height]
         }
-        self.active_harbour_receive_res = []
 
         harbour_circle_radius = 30
         self.harbour_select_circles = {
@@ -254,7 +256,6 @@ class Display(object):
             Resource.Ore: [(1280, 696), harbour_circle_radius],
             None: [(1350, 696), harbour_circle_radius]
         }
-        self.active_harbour = []
 
         semi_circle_scale = 0.58
         semi_circle_img_width = int(235 * semi_circle_scale)
@@ -284,8 +285,6 @@ class Display(object):
             [1450, 867, development_card_res_box_width, development_card_res_box_height]
         ]
 
-        self.active_trade_res = []
-
         self.receive_player_resource_boxes = {
             Resource.Wood: [1602, 723, development_card_res_box_width, development_card_res_box_height],
             Resource.Brick: [1630, 765, development_card_res_box_width, development_card_res_box_height],
@@ -301,8 +300,6 @@ class Display(object):
             [1533, 867, development_card_res_box_width, development_card_res_box_height]
         ]
 
-        self.active_receive_res = []
-
         self.player_box_width = 37
         self.player_box_height = 37
         self.player_boxes = {
@@ -311,7 +308,7 @@ class Display(object):
             PlayerId.Red: [1480, 646, self.player_box_width, self.player_box_height],
             PlayerId.Blue: [1525, 646, self.player_box_width, self.player_box_height]
         }
-        self.active_other_player = []
+
 
         self.resource_image_paths = {
             Resource.Wood: "resources/wood.png",
@@ -323,11 +320,38 @@ class Display(object):
         self.resource_images = {key: pygame.image.load(os.path.join(*self.image_path, val)) for key, val in
                                 self.resource_image_paths.items()}
 
+        self.game_log = ""
+        self.game_log_target_rect = pygame.Rect(1140, 335, 560, 120)
+        self.game_log_surface = pygame.Surface(self.game_log_target_rect.size)
+        self.game_log_sftext = SFText(text=self.game_log, surface=self.game_log_surface,
+                                      font_path=os.path.join(os.path.dirname(__file__), "sftext/example/resources"))
+
 
         self.screen.fill(self.BACKGROUND_COLOUR)
 
+        self.reset()
+
         if self.interactive:
             self.run_event_loop()
+
+    def reset(self):
+        self.active_other_player = []
+        self.active_receive_res = []
+        self.active_trade_res = []
+        self.active_harbour = []
+        self.active_harbour_receive_res = []
+        self.active_harbour_trade_res = []
+        self.active_development_res_boxes = []
+        self.game_log_sftext.text = ""
+        self.game_log_sftext.parse_text()
+        self.message_count = 0
+
+    def update_game_log(self, message):
+        self.message_count += 1
+        color = self.road_colours[message["player_id"]]
+        message_to_add = "{style}{color "+str(color)+"}"+str(self.message_count) + ". " + message["text"] + "\n"
+        self.game_log_sftext.text = message_to_add + self.game_log_sftext.text
+        self.game_log_sftext.parse_text()
 
     def construct_outer_board_polygon(self):
         base_positions = np.array([self.scaled_corner_pos[corner.id] for corner in self.game.board.corners \
@@ -356,8 +380,13 @@ class Display(object):
     def render(self):
         self.screen.fill(self.BACKGROUND_COLOUR)
         self.render_board()
-
         pygame.display.update()
+        self.game_log_sftext.post_update()
+
+    def render_game_log(self):
+        self.game_log_surface.fill((57, 98, 137))
+        self.game_log_sftext.on_update()
+        self.screen.blit(self.game_log_surface, self.game_log_target_rect)
 
     def render_board(self):
         pygame.draw.polygon(self.screen, pygame.Color(241, 233, 161),
@@ -386,6 +415,7 @@ class Display(object):
         self.render_harbour_res_boxes()
         self.render_trading()
         self.render_longest_road_largest_army()
+        self.render_game_log()
 
     def render_action_menu(self):
         player = self.game.players[self.game.players_go]
@@ -644,6 +674,13 @@ class Display(object):
                     run = False
                 elif event.type == pygame.MOUSEBUTTONUP:
                     mouse_click = True
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button <= 3:
+                        pass
+                    else:
+                        mouse_pos = pygame.mouse.get_pos()
+                        if self.game_log_target_rect.collidepoint(*mouse_pos):
+                            self.game_log_sftext.on_mouse_scroll(event)
 
             players_go = self.game.players[self.game.players_go]
             mouse_pos = pygame.mouse.get_pos()
@@ -661,7 +698,8 @@ class Display(object):
                             }
                             valid_action, error = self.game.validate_action(action)
                             if valid_action:
-                                self.game.apply_action(action)
+                                action_log = self.game.apply_action(action)
+                                self.update_game_log(action_log)
                                 self.render_corner(corner)
                             else:
                                 messagebox.showinfo('Error', error)
@@ -681,7 +719,8 @@ class Display(object):
                             }
                             valid_action, error = self.game.validate_action(action)
                             if valid_action:
-                                self.game.apply_action(action)
+                                action_log = self.game.apply_action(action)
+                                self.update_game_log(action_log)
                                 self.render_corner(corner)
                             else:
                                 messagebox.showinfo('Error', error)
@@ -700,7 +739,8 @@ class Display(object):
                             }
                             valid_action, error = self.game.validate_action(action)
                             if valid_action:
-                                self.game.apply_action(action)
+                                action_log = self.game.apply_action(action)
+                                self.update_game_log(action_log)
                                 self.render_edge(edge)
                             else:
                                 messagebox.showinfo('Error', error)
@@ -712,7 +752,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 914 and mouse_pos[0] < 1093 and mouse_pos[1] > 382 and mouse_pos[1] < 433:
@@ -722,7 +763,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 924 and mouse_pos[0] < 1127 and mouse_pos[1] > 445 and mouse_pos[1] < 485:
@@ -732,7 +774,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1005 and mouse_pos[0] < 1128 and mouse_pos[1] > 523 and mouse_pos[1] < 600:
@@ -745,7 +788,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1141 and mouse_pos[0] < 1260 and mouse_pos[1] > 523 and mouse_pos[1] < 600:
@@ -758,7 +802,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1276 and mouse_pos[0] < 1395 and mouse_pos[1] > 523 and mouse_pos[1] < 600:
@@ -771,7 +816,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1412 and mouse_pos[0] < 1531 and mouse_pos[1] > 523 and mouse_pos[1] < 600:
@@ -795,7 +841,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1547 and mouse_pos[0] < 1666 and mouse_pos[1] > 523 and mouse_pos[1] < 600:
@@ -817,7 +864,8 @@ class Display(object):
                     }
                     valid_action, error = self.game.validate_action(action)
                     if valid_action:
-                        self.game.apply_action(action)
+                        action_log = self.game.apply_action(action)
+                        self.update_game_log(action_log)
                     else:
                         messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1440 and mouse_pos[0] < (1664 + 45) and mouse_pos[1] > 456 and mouse_pos[1] < 494:
@@ -898,7 +946,8 @@ class Display(object):
                         action["trading_resource"] = self.active_harbour_trade_res[0]
                         valid_action, error = self.game.validate_action(action)
                         if valid_action:
-                            self.game.apply_action(action)
+                            action_log = self.game.apply_action(action)
+                            self.update_game_log(action_log)
                         else:
                             messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1390 and mouse_pos[0] < 1562 and mouse_pos[1] > 646 and mouse_pos[1] < 683:
@@ -930,7 +979,8 @@ class Display(object):
                         }
                         valid_action, error = self.game.validate_action(action)
                         if valid_action:
-                            self.game.apply_action(action)
+                            action_log = self.game.apply_action(action)
+                            self.update_game_log(action_log)
                         else:
                             messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1577 and mouse_pos[0] < 1705 and mouse_pos[1] > 687 and mouse_pos[1] < 721:
@@ -942,7 +992,8 @@ class Display(object):
                         }
                         valid_action, error = self.game.validate_action(action)
                         if valid_action:
-                            self.game.apply_action(action)
+                            action_log = self.game.apply_action(action)
+                            self.update_game_log(action_log)
                         else:
                             messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1577 and mouse_pos[0] < 1705 and mouse_pos[1] > 648 and mouse_pos[1] < 682:
@@ -954,7 +1005,8 @@ class Display(object):
                         }
                         valid_action, error = self.game.validate_action(action)
                         if valid_action:
-                            self.game.apply_action(action)
+                            action_log = self.game.apply_action(action)
+                            self.update_game_log(action_log)
                         else:
                             messagebox.showinfo('Error', error)
                     else:
@@ -976,7 +1028,8 @@ class Display(object):
                             }
                             valid_action, error = self.game.validate_action(action)
                             if valid_action:
-                                self.game.apply_action(action)
+                                action_log = self.game.apply_action(action)
+                                self.update_game_log(action_log)
                             else:
                                 messagebox.showinfo('Error', error)
             else:
@@ -1018,9 +1071,11 @@ class Display(object):
                                 }
                                 valid_action, error = self.game.validate_action(action)
                                 if valid_action:
-                                    self.game.apply_action(action)
+                                    action_log = self.game.apply_action(action)
+                                    self.update_game_log(action_log)
                                 else:
                                     messagebox.showinfo('Error', error)
 
 
             pygame.display.update()
+            self.game_log_sftext.post_update()

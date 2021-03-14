@@ -28,10 +28,11 @@ class Game(object):
 
     def reset(self):
         self.board.reset()
-        for player_id in self.players:
-            self.players[player_id].reset()
         self.player_order = [PlayerId.White, PlayerId.Blue, PlayerId.Orange, PlayerId.Red]
         np.random.shuffle(self.player_order)
+        for player_id in self.players:
+            self.players[player_id].reset(self.player_order)
+
         self.players_go = self.player_order[0]
         self.player_order_id = 0
         self.resource_bank = {
@@ -96,6 +97,19 @@ class Game(object):
         self.development_cards_bought_this_turn = []
         self.longest_road = None
         self.largest_army = None
+        self.colours = {
+            PlayerId.White: (255, 255, 255),
+            PlayerId.Red: (255, 0, 0),
+            PlayerId.Blue: (0, 0, 255),
+            PlayerId.Orange: (255, 153, 51)
+        }
+        self.resource_text = {
+            Resource.Wood: "wood",
+            Resource.Brick: "brick",
+            Resource.Wheat: "wheat",
+            Resource.Sheep: "sheep",
+            Resource.Ore: "ore"
+        }
 
     def roll_dice(self):
         self.die_1 = np.random.randint(1, 7)
@@ -140,17 +154,6 @@ class Game(object):
         else:
             return False
 
-    def buy_development_card(self, player):
-        player.resources[Resource.Wheat] -= 1
-        player.resources[Resource.Sheep] -= 1
-        player.resources[Resource.Ore] -= 1
-        self.resource_bank[Resource.Wheat] += 1
-        self.resource_bank[Resource.Sheep] += 1
-        self.resource_bank[Resource.Ore] += 1
-
-        card = self.development_cards_pile.pop()
-        player.hidden_cards.append(card)
-
     def can_buy_settlement(self, player):
         if self.initial_placement_phase:
             return True
@@ -166,6 +169,10 @@ class Game(object):
             player.resources[Resource.Sheep] -= 1
             player.resources[Resource.Wood] -= 1
             player.resources[Resource.Brick] -= 1
+            player.visible_resources[Resource.Wheat] = max(player.visible_resources[Resource.Wheat] - 1, 0)
+            player.visible_resources[Resource.Sheep] = max(player.visible_resources[Resource.Sheep] - 1, 0)
+            player.visible_resources[Resource.Wood] = max(player.visible_resources[Resource.Wood] - 1, 0)
+            player.visible_resources[Resource.Brick] = max(player.visible_resources[Resource.Brick] - 1, 0)
             self.resource_bank[Resource.Wheat] += 1
             self.resource_bank[Resource.Sheep] += 1
             self.resource_bank[Resource.Wood] += 1
@@ -187,6 +194,8 @@ class Game(object):
             if road_building == False:
                 player.resources[Resource.Wood] -= 1
                 player.resources[Resource.Brick] -= 1
+                player.visible_resources[Resource.Wood] = max(player.visible_resources[Resource.Wood] - 1, 0)
+                player.visible_resources[Resource.Brick] = max(player.visible_resources[Resource.Brick] - 1, 0)
                 self.resource_bank[Resource.Wood] += 1
                 self.resource_bank[Resource.Brick] += 1
         self.board.insert_road(player.id, edge)
@@ -200,6 +209,8 @@ class Game(object):
     def build_city(self, player, corner):
         player.resources[Resource.Wheat] -= 2
         player.resources[Resource.Ore] -= 3
+        player.visible_resources[Resource.Wheat] = max(player.visible_resources[Resource.Wheat] - 2, 0)
+        player.visible_resources[Resource.Ore] = max(player.visible_resources[Resource.Ore] - 3, 0)
         self.resource_bank[Resource.Wheat] += 2
         self.resource_bank[Resource.Ore] += 3
         self.board.insert_city(player.id, corner)
@@ -435,7 +446,7 @@ class Game(object):
             else:
                 return False, "You cannot steal a resource when you haven't moved the robber."
 
-    def apply_action(self, action):
+    def apply_action(self, action, return_message=True):
         """assuming validated action"""
         player = self.players[self.players_go]
         if action["type"] == ActionTypes.PlaceSettlement:
@@ -448,6 +459,9 @@ class Game(object):
                         if tile is None or tile.resource == Resource.Empty:
                             continue
                         player.resources[tile.resource] += 1
+                        player.visible_resources[tile.resource] += 1
+            if return_message:
+                return {"player_id": player.id, "text": "Placed a settlement."}
         elif action["type"] == ActionTypes.PlaceRoad:
             edge = self.board.edges[action["edge"]]
             self.build_road(player, edge, road_building=self.road_building_active[0])
@@ -476,13 +490,19 @@ class Game(object):
                 if self.road_building_active[1] >= 2:
                     self.road_building_active = [False, 0]
                     self.must_use_development_card_ability = False
+            if return_message:
+                return {"player_id": player.id, "text": "Placed a road."}
         elif action["type"] == ActionTypes.UpgradeToCity:
             self.build_city(player, self.board.corners[action["corner"]])
+            if return_message:
+                return {"player_id": player.id, "text": "Upgraded their settlement into a city."}
         elif action["type"] == ActionTypes.RollDice:
             roll_value = self.roll_dice()
             self.dice_rolled_this_turn = True
             if roll_value == 7:
                 self.can_move_robber = True
+            if return_message:
+                return {"player_id": player.id, "text": "Rolled the dice (" + str(roll_value) + ")."}
         elif action["type"] == ActionTypes.EndTurn:
             self.can_move_robber = False
             self.dice_rolled_this_turn = False
@@ -490,10 +510,14 @@ class Game(object):
             self.update_players_go()
             self.turn += 1
             self.development_cards_bought_this_turn = []
+            if return_message:
+                return {"player_id": player.id, "text": "Ended their turn."}
         elif action["type"] == ActionTypes.MoveRobber:
             self.board.move_robber(self.board.tiles[action["tile"]])
             self.can_move_robber = False
             self.just_moved_robber = True
+            if return_message:
+                return {"player_id": player.id, "text": "Moved the robber."}
         elif action["type"] == ActionTypes.StealResource:
             player_id = action["target"]
             resources_to_steal = []
@@ -505,51 +529,95 @@ class Game(object):
                 resource_to_steal = random.choice(resources_to_steal)
                 player.resources[resource_to_steal] += 1
                 self.players[player_id].resources[resource_to_steal] -= 1
+                for res in [Resource.Brick, Resource.Wheat, Resource.Wood, Resource.Sheep, Resource.Ore]:
+                    self.players[player_id].visible_resources[res] = max(self.players[player_id].visible_resources[res] - 1, 0)
             self.just_moved_robber = False
+            if return_message:
+                message = {"player_id": player.id}
+                message["text"] = "Stole a resource from {style}{color " + str(self.colours[action["target"]]) + "}Player"
+                return message
         elif action["type"] == ActionTypes.PlayDevelopmentCard:
             player.hidden_cards.remove(action["card"])
             player.visible_cards.append(action["card"])
             self.played_development_card_this_turn = True
             if action["card"] == DevelopmentCard.VictoryPoint:
                 player.victory_points += 1
+                card_type_text = "Victory Point card."
             elif action["card"] == DevelopmentCard.Knight:
                 self.can_move_robber = True
                 self.update_largest_army()
+                card_type_text = "Knight card."
             elif action["card"] == DevelopmentCard.RoadBuilding:
                 self.road_building_active[0] = True
                 self.road_building_active[1] = 0
                 self.must_use_development_card_ability = True
+                card_type_text = "Road Building card."
             elif action["card"] == DevelopmentCard.Monopoly:
                 resource = action["resource"]
+                card_type_text = "Monopoly card, taking " + self.resource_text[resource] + "."
                 for other_player in self.players.values():
                     if other_player.id == player.id:
                         continue
                     res_count = other_player.resources[resource]
                     other_player.resources[resource] = 0
+                    other_player.visible_resources[resource] = 0
                     player.resources[resource] += res_count
+                    player.visible_resources[resource] += res_count
             elif action["card"] == DevelopmentCard.YearOfPlenty:
                 for resource in [action["resource_1"], action["resource_2"]]:
                     self.resource_bank[resource] -= 1
                     player.resources[resource] += 1
+                    player.visible_resources[resource] += 1
+                card_type_text = "Year of Plenty card, collecting {} and {}.".format(self.resource_text[action["resource_1"]],
+                                                                                     self.resource_text[action["resource_2"]])
+            if return_message:
+                return {"player_id": player.id, "text": "Played a "+card_type_text}
         elif action["type"] == ActionTypes.BuyDevelopmentCard:
             player.resources[Resource.Sheep] -= 1
             player.resources[Resource.Ore] -= 1
             player.resources[Resource.Wheat] -= 1
+            player.visible_resources[Resource.Sheep] = max(player.visible_resources[Resource.Sheep] - 1, 0)
+            player.visible_resources[Resource.Ore] = max(player.visible_resources[Resource.Ore] - 1, 0)
+            player.visible_resources[Resource.Wheat] = max(player.visible_resources[Resource.Wheat] - 1, 0)
             self.resource_bank[Resource.Sheep] += 1
             self.resource_bank[Resource.Ore] += 1
             self.resource_bank[Resource.Wheat] += 1
             player.hidden_cards.append(self.development_cards_pile.pop())
             self.development_cards_bought_this_turn.append(copy.copy(player.hidden_cards[-1]))
+            if return_message:
+                return {"player_id": player.id, "text": "Bought a development card."}
         elif action["type"] == ActionTypes.ExchangeResource:
             desired_resource = action["desired_resource"]
             trade_resource = action["trading_resource"]
             player.resources[desired_resource] += 1
+            player.visible_resources[desired_resource] += 1
             player.resources[trade_resource] -= action["exchange_rate"]
+            player.visible_resources[trade_resource] = max(player.visible_resources[trade_resource] - action["exchange_rate"], 0)
             self.resource_bank[trade_resource] += action["exchange_rate"]
             self.resource_bank[desired_resource] -= 1
+            if return_message:
+                return {
+                    "player_id": player.id,
+                    "text": "Exchanged {} {} for {}".format(action["exchange_rate"],
+                                                              self.resource_text[action["trading_resource"]],
+                                                              self.resource_text[action["desired_resource"]])
+                }
         elif action["type"] == ActionTypes.ProposeTrade:
             self.must_respond_to_trade = True
             self.proposed_trade = action.copy()
+            if return_message:
+                message = {"player_id": player.id}
+                text = "Proposed a deal to {style}{color " + str(self.colours[action["target_player"]]) + \
+                            "}Player, {style}{color " + str(self.colours[player.id]) + "}offering "
+                for res in self.proposed_trade["player_proposing_res"]:
+                    text += self.resource_text[res] + ", "
+                text = text[:-2]
+                text += " for "
+                for res in self.proposed_trade["target_player_res"]:
+                    text += self.resource_text[res] + ", "
+                text = text[:-2] + "."
+                message["text"] = text
+                return message
         elif action["type"] == ActionTypes.RespondToOffer:
             if action["response"] == "accept":
                 trade = self.proposed_trade
@@ -557,13 +625,26 @@ class Game(object):
                 p2 = trade["target_player"]
                 for res in trade["player_proposing_res"]:
                     self.players[p1].resources[res] -= 1
+                    self.players[p1].visible_resources[res] = max(self.players[p1].visible_resources[res] - 1, 0)
                     self.players[p2].resources[res] += 1
+                    self.players[p2].visible_resources[res] += 1
                 for res in trade["target_player_res"]:
                     self.players[p1].resources[res] += 1
+                    self.players[p1].visible_resources[res] += 1
                     self.players[p2].resources[res] -= 1
+                    self.players[p2].visible_resources[res] = max(self.players[p2].visible_resources[res] - 1, 0)
             self.must_respond_to_trade = False
-            self.proposed_trade = None
-
+            if return_message:
+                message = {"player_id": self.proposed_trade["target_player"]}
+                if action["response"] == "accept":
+                    text = "Accepted the deal."
+                else:
+                    text = "Rejected the deal."
+                message["text"] = text
+                self.proposed_trade = None
+                return message
+            else:
+                self.proposed_trade = None
     def update_largest_army(self):
         max_count = 0
         count_player = None
@@ -619,3 +700,55 @@ class Game(object):
                         self.players[self.longest_road["player"]].victory_points -= 2
                         self.longest_road = longest_road_update
                         self.players[player_id].victory_points += 2
+
+    def update_player_resource_estimates(self, resources, player_updating, player_who_stole = None):
+        total_resources = sum(self.players[player_updating].resources.values())
+        if player_who_stole is not None:
+            total_resources_stealer = sum(self.players[player_who_stole].resources.values())
+        for player in [PlayerId.White, PlayerId.Red, PlayerId.Blue, PlayerId.Orange]:
+            if player == player_updating:
+                if player_who_stole is None:
+                    continue
+                stealing_player_label = self.players[player].player_lookup[player_who_stole]
+                for res, num_res in resources.items():
+                    #player knows what was stolen
+                    self.players[player].opponent_max_res[stealing_player_label][res] += num_res
+                    self.players[player].opponent_min_res[stealing_player_label][res] += num_res
+            else:
+                player_label = self.players[player].player_lookup[player_updating]
+                if player_who_stole is None:
+                    # visible exchange of resources
+                    for res, num_res in resources.items():
+                        curr_max_est = self.players[player].opponent_max_res[player_label][res]
+                        curr_min_est = self.players[player].opponent_min_res[player_label][res]
+                        self.players[player].opponent_max_res[player_label][res] = np.clip(curr_max_est + num_res,
+                                                                                           0, total_resources)
+                        self.players[player].opponent_min_res[player_label][res] = np.clip(curr_min_est + num_res,
+                                                                                           0, total_resources)
+                else:
+                    if player == player_who_stole:
+                        # knows exactly what was stolen
+                        for res, num_res in resources.items():
+                            curr_max_est = self.players[player].opponent_max_res[player_label][res]
+                            curr_min_est = self.players[player].opponent_min_res[player_label][res]
+                            self.players[player].opponent_max_res[player_label][res] = np.clip(curr_max_est + num_res,
+                                                                                               0, total_resources)
+                            self.players[player].opponent_min_res[player_label][res] = np.clip(curr_min_est + num_res,
+                                                                                               0, total_resources)
+                    else:
+                        stealing_player_label = self.players[player].player_lookup[player_who_stole]
+                        for res in [Resource.Wood, Resource.Brick, Resource.Wheat, Resource.Sheep, Resource.Ore]:
+                            curr_max_player_est = self.players[player].opponent_max_res[player_label][res]
+                            curr_min_player_est = self.players[player].opponent_min_res[player_label][res]
+                            self.players[player].opponent_max_res[player_label][res] = np.clip(curr_max_player_est,
+                                                                                               0, total_resources)
+                            #any resource could have been stolen
+                            self.players[player].opponent_min_res[player_label][res] = np.clip(curr_min_player_est - 1,
+                                                                                               0, total_resources)
+                            if curr_max_player_est > 0:
+                                curr_max_steal_est = self.players[player].opponent_max_res[stealing_player_label][res]
+                                curr_min_steal_est = self.players[player].opponent_min_res[stealing_player_label][res]
+                                self.players[player].opponent_max_res[stealing_player_label][res] = np.clip(curr_max_steal_est + 1,
+                                                                                                            0, total_resources_stealer)
+                                self.players[player].opponent_min_res[stealing_player_label][res] = np.clip(curr_min_steal_est,
+                                                                                                            0, total_resources_stealer)

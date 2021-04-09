@@ -22,9 +22,10 @@ def draw_polygon_alpha(surface, color, points):
     surface.blit(shape_surf, target_rect)
 
 class Display(object):
-    def __init__(self, game, interactive=False):
+    def __init__(self, game, interactive=False, debug_mode=False):
         self.game = game
         self.interactive = interactive
+        self.debug_mode = debug_mode
 
         self.hexagon_side_len = 82.25 * 1.0
         self.hexagon_height = int(2 * self.hexagon_side_len)
@@ -44,7 +45,10 @@ class Display(object):
         self.dice_height = int(111 * self.dice_scale)
         self.dice_width = int(109 * self.dice_scale)
 
-        screen_width, screen_height = 1735, 1100
+        if self.debug_mode:
+            screen_width, screen_height = 2200, 1100
+        else:
+            screen_width, screen_height = 1735, 1100
 
         self.first_tile_pos = (250, 300)
 
@@ -382,6 +386,7 @@ class Display(object):
         self.render_board()
         pygame.display.update()
         self.game_log_sftext.post_update()
+        pygame.event.pump()
 
     def render_game_log(self):
         self.game_log_surface.fill((57, 98, 137))
@@ -417,8 +422,76 @@ class Display(object):
         self.render_longest_road_largest_army()
         self.render_game_log()
 
+        if self.debug_mode:
+            self.render_debug_screen()
+
+    def render_debug_screen(self):
+        if self.game.must_respond_to_trade:
+            player = self.game.players[self.game.proposed_trade["target_player"]]
+        else:
+            player = self.game.players[self.game.players_go]
+        self.screen.blit(self.resource_images[Resource.Wood], (1950, 30))
+        self.screen.blit(self.resource_images[Resource.Brick], (2000, 30))
+        self.screen.blit(self.resource_images[Resource.Sheep], (2050, 30))
+        self.screen.blit(self.resource_images[Resource.Wheat], (2100, 30))
+        self.screen.blit(self.resource_images[Resource.Ore], (2150, 30))
+        next_p_text = self.count_font.render("Next", False, (0,0,0))
+        self.screen.blit(next_p_text, (1735, 105))
+        pygame.draw.rect(self.screen, self.road_colours[player.inverse_player_lookup["next"]], (1825, 100, 30, 30))
+        next_actual_text = self.count_font.render("Actual", False, (0,0,0))
+        self.screen.blit(next_actual_text, (1885, 75))
+        next_min_text = self.count_font.render("Min", False, (0,0,0))
+        self.screen.blit(next_min_text, (1885, 105))
+        next_max_text = self.count_font.render("Max", False, (0,0,0))
+        self.screen.blit(next_max_text, (1885, 135))
+        start_x = 1975; x_diff = 50; y1 = 75; y2 = 105; y3 = 135
+        next_player = self.game.players[player.inverse_player_lookup["next"]]
+        for res in [Resource.Wood, Resource.Brick, Resource.Sheep, Resource.Wheat, Resource.Ore]:
+            actual_text = str(next_player.resources[res])
+            self.screen.blit(self.count_font.render(actual_text, False, (255,255,255)), (start_x, y1))
+            min_text = str(player.opponent_min_res["next"][res])
+            self.screen.blit(self.count_font.render(min_text, False, (255,255,255)), (start_x, y2))
+            max_text = str(player.opponent_max_res["next"][res])
+            self.screen.blit(self.count_font.render(max_text, False, (255,255,255)), (start_x, y3))
+            start_x += x_diff
+
+        self.screen.blit(self.count_font.render("Next Next", False, (0,0,0)), (1720, 255))
+        pygame.draw.rect(self.screen, self.road_colours[player.inverse_player_lookup["next_next"]], (1825, 250, 30, 30))
+        self.screen.blit(self.count_font.render("Actual", False, (0,0,0)), (1885, 225))
+        self.screen.blit(self.count_font.render("Min", False, (0,0,0)), (1885, 255))
+        self.screen.blit(self.count_font.render("Max", False, (0,0,0)), (1885, 285))
+        start_x = 1975; x_diff = 50; y1 = 225; y2 = 255; y3 = 285
+        next_player = self.game.players[player.inverse_player_lookup["next_next"]]
+        for res in [Resource.Wood, Resource.Brick, Resource.Sheep, Resource.Wheat, Resource.Ore]:
+            actual_text = str(next_player.resources[res])
+            self.screen.blit(self.count_font.render(actual_text, False, (255, 255, 255)), (start_x, y1))
+            min_text = str(player.opponent_min_res["next_next"][res])
+            self.screen.blit(self.count_font.render(min_text, False, (255, 255, 255)), (start_x, y2))
+            max_text = str(player.opponent_max_res["next_next"][res])
+            self.screen.blit(self.count_font.render(max_text, False, (255, 255, 255)), (start_x, y3))
+            start_x += x_diff
+
+        self.screen.blit(self.count_font.render("N N N", False, (0, 0, 0)), (1720, 405))
+        pygame.draw.rect(self.screen, self.road_colours[player.inverse_player_lookup["next_next_next"]], (1825, 400, 30, 30))
+        self.screen.blit(self.count_font.render("Actual", False, (0, 0, 0)), (1885, 375))
+        self.screen.blit(self.count_font.render("Min", False, (0, 0, 0)), (1885, 405))
+        self.screen.blit(self.count_font.render("Max", False, (0, 0, 0)), (1885, 435))
+        start_x = 1975; x_diff = 50; y1 = 375; y2 = 405; y3 = 435
+        next_player = self.game.players[player.inverse_player_lookup["next_next_next"]]
+        for res in [Resource.Wood, Resource.Brick, Resource.Sheep, Resource.Wheat, Resource.Ore]:
+            actual_text = str(next_player.resources[res])
+            self.screen.blit(self.count_font.render(actual_text, False, (255, 255, 255)), (start_x, y1))
+            min_text = str(player.opponent_min_res["next_next_next"][res])
+            self.screen.blit(self.count_font.render(min_text, False, (255, 255, 255)), (start_x, y2))
+            max_text = str(player.opponent_max_res["next_next_next"][res])
+            self.screen.blit(self.count_font.render(max_text, False, (255, 255, 255)), (start_x, y3))
+            start_x += x_diff
+
     def render_action_menu(self):
-        player = self.game.players[self.game.players_go]
+        if self.game.must_respond_to_trade:
+            player = self.game.players[self.game.proposed_trade["target_player"]]
+        else:
+            player = self.game.players[self.game.players_go]
         self.screen.blit(self.action_menu, (843, 145))
         if self.game.die_1 is not None:
             self.screen.blit(self.dice_images[self.game.die_1], (890, 248))
@@ -444,11 +517,11 @@ class Display(object):
             card_pos[0] += shift
 
     def render_top_menu(self):
-        player = self.game.players[self.game.players_go]
         if self.game.must_respond_to_trade:
-            pygame.draw.rect(self.screen, self.road_colours[self.game.proposed_trade["target_player"]], (221, 21, 170, 90))
+            player = self.game.players[self.game.proposed_trade["target_player"]]
         else:
-            pygame.draw.rect(self.screen, self.road_colours[player.id], (221, 21, 170, 90))
+            player = self.game.players[self.game.players_go]
+        pygame.draw.rect(self.screen, self.road_colours[player.id], (221, 21, 170, 90))
         self.screen.blit(self.top_menu, (0,0))
         vps = player.victory_points
         vp_text = self.top_menu_font.render(str(int(vps)), False, (0,0,0))
@@ -490,7 +563,7 @@ class Display(object):
         y_pos = self.played_development_cards_properties["start"][1]
         row_count = 0
         for card in player.visible_cards:
-            self.screen.blit(self.development_card_images[card], (x_pos, y_pos))
+            self.screen.blit(self.development_card_images[int(card)], (x_pos, y_pos))
             row_count += 1
             if row_count == self.played_development_cards_properties["max_in_row"]:
                 x_pos = self.played_development_cards_properties["start"][0]
@@ -1079,3 +1152,4 @@ class Display(object):
 
             pygame.display.update()
             self.game_log_sftext.post_update()
+            pygame.event.pump()

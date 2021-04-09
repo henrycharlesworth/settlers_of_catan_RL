@@ -23,6 +23,8 @@ class Corner(object):
 
     def can_place_settlement(self, player, initial_placement = False):
         player_roads = 0
+        if self.building is not None:
+            return False
         for corner in self.corner_neighbours:
             if corner[0] is not None:
                 if corner[0].building is not None:

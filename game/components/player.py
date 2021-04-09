@@ -5,7 +5,6 @@ from game.enums import PlayerId, Resource
 class Player(object):
     def __init__(self, id: PlayerId):
         self.id = id
-        self.reset()
 
     def reset(self, player_order):
         self.player_order = player_order
@@ -22,11 +21,11 @@ class Player(object):
         self.buildings = []
         self.roads = []
         self.resources = {
-            Resource.Brick: 5,
-            Resource.Wood: 5,
-            Resource.Wheat: 5,
-            Resource.Ore: 5,
-            Resource.Sheep: 5
+            Resource.Brick: 10,
+            Resource.Wood: 10,
+            Resource.Wheat: 10,
+            Resource.Ore: 10,
+            Resource.Sheep: 10
         }
         self.visible_resources = {
             Resource.Brick: self.resources[Resource.Brick],
@@ -36,11 +35,11 @@ class Player(object):
             Resource.Ore: self.resources[Resource.Ore]
         }
         self.opponent_max_res = {
-            "next": copy.copy(self.visible_resources),
-            "next_next": copy.copy(self.visible_resources),
-            "next_next_next": copy.copy(self.visible_resources)
+            "next": copy.deepcopy(self.visible_resources),
+            "next_next": copy.deepcopy(self.visible_resources),
+            "next_next_next": copy.deepcopy(self.visible_resources)
         }
-        self.opponent_min_res = copy.copy(self.opponent_max_res)
+        self.opponent_min_res = copy.deepcopy(self.opponent_max_res)
         self.harbours = {}
         self.longest_road = 0
         self.hidden_cards = []

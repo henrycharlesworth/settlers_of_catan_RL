@@ -1,6 +1,6 @@
 from game.game import Game
 
-game = Game(interactive=True)
+game = Game(interactive=True, debug_mode=True)
 
 
 

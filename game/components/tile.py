@@ -5,6 +5,18 @@ class Tile(object):
         self.terrain = terrain
         self.resource = Resource(terrain)
         self.value = value
+        if value == 7:
+            self.likelihood = None
+        elif value == 6 or value == 8:
+            self.likelihood = 5
+        elif value == 5 or value == 9:
+            self.likelihood = 4
+        elif value == 4 or value == 10:
+            self.likelihood = 3
+        elif value == 3 or value == 11:
+            self.likelihood = 2
+        else:
+            self.likelihood = 1
         self.id = id
         self.contains_robber = False
 

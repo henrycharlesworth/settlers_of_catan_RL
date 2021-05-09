@@ -47,8 +47,12 @@ class MultiActionHeadsGeneralised(nn.Module):
             if len(self.type_conditional_action_masks[i]):
                 head_mask = 1
                 for prev_head_ind, head_type_to_option_map in self.type_conditional_action_masks[i].items():
-                    head_mask *= masks[i][head_type_to_option_map[action_outputs[prev_head_ind]].squeeze(),
-                                 np.arange(main_head_inputs.size(0)), :]
+                    if actions is not None:
+                        head_mask *= masks[i][head_type_to_option_map[actions[prev_head_ind]].squeeze(),
+                                     np.arange(main_head_inputs.size(0)), :]
+                    else:
+                        head_mask *= masks[i][head_type_to_option_map[action_outputs[prev_head_ind]].squeeze(),
+                                     np.arange(main_head_inputs.size(0)), :]
             else:
                 head_mask = masks[i]
 
@@ -92,7 +96,7 @@ class MultiActionHeadsGeneralised(nn.Module):
                 joint_action_log_prob += head_log_prob
                 head_log_probs_filtered.append((log_prob_mask==0).float().detach())
 
-                entropy_head = log_prob_mask * head_distribution.entropy()
+                entropy_head = log_prob_mask * (head_distribution.entropy().view(-1, 1))
                 entropy += entropy_head.mean()
             else:
                 if actions is None:
@@ -217,8 +221,8 @@ class RecurrentResourceActionHead(nn.Module):
                 one_hot_action.scatter_(-1, action, 1.0)
                 log_prob = distribution.log_probs(action)
             else:
-                one_hot_action.scatter_(-1, actions[i], 1.0)
-                log_prob = distribution.log_probs(actions[i])
+                one_hot_action.scatter_(-1, actions[:, i].view(-1, 1), 1.0)
+                log_prob = distribution.log_probs(actions[:, i])
             output += one_hot_action
             current_resources = torch.clamp(current_resources - one_hot_action, 0, math.inf)
 
@@ -231,7 +235,10 @@ class RecurrentResourceActionHead(nn.Module):
             entropy = distribution.entropy().view(-1, 1)
 
             if i > 0:
-                log_prob_mask = (actions_out[-1][:, 0] > 0).float().view(-1, 1)
+                if actions is not None:
+                    log_prob_mask = (actions[:, i-1] > 0).float().view(-1, 1)
+                else:
+                    log_prob_mask = (actions_out[-1][:, 0] > 0).float().view(-1, 1)
                 log_prob *= log_prob_mask
                 entropy *= log_prob_mask
 

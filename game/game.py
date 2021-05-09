@@ -112,6 +112,8 @@ class Game(object):
         self.development_cards_bought_this_turn = []
         self.longest_road = None
         self.largest_army = None
+        self.current_longest_path = defaultdict(lambda: 0)
+        self.current_army_size = defaultdict(lambda: 0)
         self.colours = {
             PlayerId.White: (255, 255, 255),
             PlayerId.Red: (255, 0, 0),
@@ -195,6 +197,7 @@ class Game(object):
             self.resource_bank[Resource.Brick] += 1
         self.board.insert_settlement(player, corner, initial_placement=self.initial_placement_phase)
         self.building_bank["settlements"][player.id] -= 1
+        player.buildings[corner.id] = BuildingType.Settlement
         player.victory_points += 1
 
     def can_buy_road(self, player):
@@ -215,6 +218,7 @@ class Game(object):
                 self.resource_bank[Resource.Wood] += 1
                 self.resource_bank[Resource.Brick] += 1
         self.board.insert_road(player.id, edge)
+        player.roads.append(edge.id)
 
     def can_buy_city(self, player):
         if self.building_bank["cities"][player.id] > 0:
@@ -233,6 +237,7 @@ class Game(object):
         player.victory_points += 1
         self.building_bank["cities"][player.id] -= 1
         self.building_bank["settlements"][player.id] += 1
+        player.buildings[corner.id] = BuildingType.City
 
     def update_players_go(self, left=False):
         if left:
@@ -735,6 +740,7 @@ class Game(object):
         count_player = None
         for player_id in [PlayerId.Blue, PlayerId.White, PlayerId.Red, PlayerId.Orange]:
             knight_count = self.players[player_id].visible_cards.count(DevelopmentCard.Knight)
+            self.current_army_size[player_id] = knight_count
             if knight_count >= 3 and knight_count > max_count:
                 max_count = knight_count
                 count_player = player_id
@@ -778,6 +784,8 @@ class Game(object):
 
     def update_longest_road(self, player_id):
         max_path_len = self.get_longest_path(player_id)
+
+        self.current_longest_path[player_id] = max_path_len
 
         longest_road_update = {
             "player": player_id,

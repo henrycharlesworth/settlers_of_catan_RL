@@ -1,7 +1,3 @@
-import glob
-import os
-
-import torch
 import torch.nn as nn
 
 
@@ -33,7 +29,3 @@ def get_render_func(venv):
         return get_render_func(venv.env)
 
     return None
-
-
-def _flatten_helper(T, N, _tensor):
-    return _tensor.view(T * N, *_tensor.size()[2:])

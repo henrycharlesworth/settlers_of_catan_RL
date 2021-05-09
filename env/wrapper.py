@@ -1,7 +1,7 @@
 import numpy as np
 
 from game.game import Game
-from game.enums import ActionTypes, DevelopmentCard, Resource, BuildingType
+from game.enums import ActionTypes, DevelopmentCard, Resource, BuildingType, PlayerId
 
 N_CORNERS = 54
 N_EDGES = 72
@@ -9,42 +9,27 @@ N_TILES = 19
 
 class EnvWrapper(object):
     def __init__(self, interactive=False, max_actions_per_turn=None, max_proposed_trades_per_turn = None,
-                 validate_actions=True, debug_mode=False):
-        """
-        ultimately should input policies and specify which are actually being recorded - only return obs etc for those.
-        BUT - this will really slow down getting to the next observation (if stepping in parallel will have to wait
-        for all envs - some of which will be stepping through other players gos). Almost makes you want to go
-        asynchronous... ugh. Or we just always play most recent policy? IDK :(
-
-        could maybe collect batches within each process and return full batch, which then has to be mashed together...
-        I think this is best approach though - we have to periodically update weights anyway, so this will be efficient-ish.
-        Can also do batch processing of returns/advantages so that batches can just be appended together on the GPU end.
-        YAHYAHYAH. obviously makes code more difficult but meh.
-
-        Maybe make this a wrapper on top of this "normal" environment. Probably a good idea.
-        """
+                 validate_actions=True, debug_mode=False, win_reward=100, vp_reward=True):
         if max_actions_per_turn is None:
             self.max_actions_per_turn = np.inf
         else:
             self.max_actions_per_turn = max_actions_per_turn
         self.max_proposed_trades_per_turn = max_proposed_trades_per_turn
-        self.validate_actions = validate_actions
-        self.game = Game(interactive=interactive, debug_mode=debug_mode)
         """
         can turn validate actions off to increase speed slightly. But if you send invalid
         actions it will probably fuck everything up.
         """
+        self.validate_actions = validate_actions
+        self.game = Game(interactive=interactive, debug_mode=debug_mode)
+
+        self.win_reward = win_reward
+        self.vp_reward = vp_reward
 
     def reset(self):
         self.game.reset()
         self.winner = None
-        main_obs, custom_inputs = self._get_obs()
-        obs = {
-            "main": main_obs,
-            "custom_inputs": custom_inputs,
-            "players_go": self.game.players_go
-        }
-        return obs
+        self.curr_vps = {PlayerId.White: 0, PlayerId.Red: 0, PlayerId.Blue: 0, PlayerId.Orange: 0}
+        return self._get_obs()
 
     def step(self, action):
         translated_action = self._translate_action(action)
@@ -54,12 +39,7 @@ class EnvWrapper(object):
                 raise RuntimeError(error)
         self.game.apply_action(translated_action)
 
-        main_obs, custom_inputs = self._get_obs()
-        obs = {
-            "main": main_obs,
-            "custom_inputs": custom_inputs,
-            "players_go": self.game.players_go
-        }
+        obs = self._get_obs()
 
         done, reward = self._get_done_and_rewards()
 
@@ -68,31 +48,54 @@ class EnvWrapper(object):
         return obs, reward, done, info
 
     def _get_obs(self):
-        """temporary"""
-        main_obs = np.random.randn(32)
-        custom_inputs = {
+        if self.game.must_respond_to_trade:
+            player = self.game.players[self.game.proposed_trade["target_player"]]
+        else:
+            player = self.game.players[self.game.players_go]
+
+        obs = {
             "proposed_trade": np.zeros((12,)),
-            "current_resources": np.zeros((6,))
+            "current_resources": np.zeros((6,)),
+            "player_id": player.id
         }
         if self.game.proposed_trade is not None:
             for res in self.game.proposed_trade["player_proposing_res"]:
-                custom_inputs["proposed_trade"][res] = 1.0
+                obs["proposed_trade"][res] = 1.0
             for res in self.game.proposed_trade["target_player_res"]:
-                custom_inputs["proposed_trade"][res + 5] = 1.0
+                obs["proposed_trade"][res + 5] = 1.0
         for res in [Resource.Brick, Resource.Wood, Resource.Ore, Resource.Sheep, Resource.Wheat]:
-            custom_inputs["current_resources"][res] = self.game.players[self.game.players_go].resources[res]
-        return main_obs, custom_inputs
+            obs["current_resources"][res] = self.game.players[player.id].resources[res]
+
+        obs["tile_representations"] = self._get_tile_features(player)
+
+        obs["current_player_main"], obs["current_player_played_dev"], obs["current_player_hidden_dev"] = \
+            self._get_player_inputs(player, "current")
+
+        for target_p in ["next", "next_next", "next_next_next"]:
+            obs[target_p+"_player_main"], obs[target_p + "_player_played_dev"], _ = self._get_player_inputs(
+                player, target_p
+            )
+
+        return obs
 
     def _get_done_and_rewards(self):
-        """temporary"""
         done = False
+        rewards = {player: 0 for player in [PlayerId.White, PlayerId.Red, PlayerId.Blue, PlayerId.Orange]}
         for id, player in self.game.players.items():
             if player.victory_points >= 10:
                 done = True
                 self.winner = player
-        """deal with rewards etc later. Will be a little bit more complicated as need to save rewards
-        at end of turn and potentially "cycle back" and give them. fine though."""
-        return done, 0.0
+        updated_vps = {}
+        for player_id in [PlayerId.Blue, PlayerId.Orange, PlayerId.Red, PlayerId.White]:
+            updated_vps[player_id] = self.game.players[player_id].victory_points
+            if self.vp_reward:
+                rewards[player_id] += (updated_vps[player_id] - self.curr_vps[player_id])
+        self.curr_vps = updated_vps
+
+        if done:
+            rewards[self.winner.id] += self.win_reward
+
+        return done, rewards
 
     def _translate_action(self, action):
         players_go = self.game.players_go
@@ -443,15 +446,7 @@ class EnvWrapper(object):
     def render(self):
         return self.game.render()
 
-    def _get_tile_features(self):
-        """
-        NEEDS TESTING
-        :return:
-        """
-        if self.game.must_respond_to_trade:
-            player = self.game.players[self.game.proposed_trade["target_player"]]
-        else:
-            player = self.game.players[self.game.players_go]
+    def _get_tile_features(self, player):
         tile_features = []
         for tile in self.game.board.tiles:
             contains_robber = np.array([tile.contains_robber], dtype=np.float32)
@@ -485,3 +480,188 @@ class EnvWrapper(object):
             tile_feature = np.concatenate((contains_robber, value, resource, *corners))
             tile_features.append(tile_feature)
         return tile_features
+
+    def _get_player_inputs(self, player, target_player_id="current"):
+        if target_player_id == "current":
+            target_player = player
+        else:
+            target_player = self.game.players[player.inverse_player_lookup[target_player_id]]
+
+        if target_player_id != "current":
+            other_player_id = np.zeros((3,))
+            if target_player_id == "next":
+                other_player_id[0] = 1.0
+            elif target_player_id == "next_next":
+                other_player_id[1] = 1.0
+            elif target_player_id == "next_next_next":
+                other_player_id[2] = 1.0
+            else:
+                raise ValueError
+
+        """resources"""
+        if target_player_id != "current":
+            min_resources = []
+            max_resources = []
+        else:
+            resources = []
+
+        for res in [Resource.Wood, Resource.Brick, Resource.Wheat, Resource.Ore, Resource.Sheep]:
+            if target_player_id == "current":
+                res_count = np.zeros((8,))
+                res_num = target_player.resources[res]
+                if res_num < 5:
+                    res_count[res_num] = 1.0
+                elif res_num < 8:
+                    res_count[5] = 1.0
+                elif res_num < 11:
+                    res_count[6] = 1.0
+                else:
+                    res_count[7] = 1.0
+                resources.append(res_count)
+            else:
+                min_res_count = np.zeros((8,))
+                max_res_count = np.zeros((8,))
+                min_res_num = player.opponent_min_res[target_player_id][res]
+                max_res_num = player.opponent_max_res[target_player_id][res]
+                if min_res_num < 5:
+                    min_res_count[min_res_num] = 1.0
+                elif min_res_num < 8:
+                    min_res_count[5] = 1.0
+                elif min_res_num < 11:
+                    min_res_count[6] = 1.0
+                else:
+                    min_res_count[7] = 1.0
+                min_resources.append(min_res_count)
+                if max_res_num < 5:
+                    max_res_count[max_res_num] = 1.0
+                elif max_res_num < 8:
+                    max_res_count[5] = 1.0
+                elif max_res_num < 11:
+                    max_res_count[6] = 1.0
+                else:
+                    max_res_count[7] = 1.0
+                max_resources.append(max_res_count)
+
+        """victory points"""
+        victory_points = np.zeros((10,))
+        vps = target_player.victory_points
+        if vps < 10:
+            victory_points[vps] = 1.0
+        else:
+            victory_points[-1] = 1.0
+
+        """resource access"""
+        res_access = {}
+        for res in [Resource.Wood, Resource.Brick, Resource.Wheat, Resource.Ore, Resource.Sheep]:
+            res_access[res] = np.zeros((10,))
+        for corner, building_type in target_player.buildings.items():
+            for tile in self.game.board.corners[corner].adjacent_tiles:
+                if tile is not None and tile.value != 7:
+                    if building_type == BuildingType.Settlement:
+                        to_add = 1
+                    elif building_type == BuildingType.City:
+                        to_add = 2
+                    if tile.value <= 6:
+                        ind = tile.value - 2
+                    else:
+                        ind = tile.value - 3
+                    res_access[tile.resource][ind] += to_add
+
+        """longest road"""
+        longest_road = np.zeros((2,))
+        if self.game.longest_road is not None:
+            if self.game.longest_road["player"] == target_player.id:
+                longest_road[0] = 1.0
+                longest_road[1] = self.game.longest_road["count"] / 8.0
+            else:
+                if target_player.id in self.game.current_longest_path:
+                    longest_road[1] = self.game.current_longest_path[target_player.id] / 8.0
+
+        """largest army"""
+        largest_army = np.zeros((2,))
+        if self.game.largest_army is not None:
+            if self.game.largest_army["player"] == target_player.id:
+                largest_army[0] = 1.0
+        largest_army[1] = self.game.current_army_size[target_player.id] / 4.0
+
+        """
+        harbours
+        """
+        harbour_access = np.zeros((6,))
+        for harbour in target_player.harbours.values():
+            if harbour.exchange_value == 3:
+                harbour_access[0] = 1.0
+            else:
+                harbour_access[harbour.resource] = 1.0
+
+        """
+        Development cards
+        """
+        if len(target_player.visible_cards) == 0:
+            played_cards = np.zeros((1,), dtype=int)
+        else:
+            played_cards = np.zeros((len(target_player.visible_cards),), dtype=int)
+        for i, card in enumerate(target_player.visible_cards):
+            played_cards[i] = card + 1
+
+        if target_player_id == "current":
+            if len(target_player.hidden_cards) == 0:
+                hidden_cards = np.zeros((1,), dtype=int)
+            else:
+                hidden_cards = np.zeros((len(target_player.hidden_cards),), dtype=int)
+            for i, card in enumerate(target_player.hidden_cards):
+                hidden_cards[i] = card + 1
+
+            """bank resources"""
+            bank_resources = []
+            for res in [Resource.Wood, Resource.Brick, Resource.Wheat, Resource.Ore, Resource.Sheep]:
+                bank_res = np.zeros((7,))
+                num_res = self.game.resource_bank[res]
+                if num_res <= 2:
+                    bank_res[num_res] = 1.0
+                elif num_res <=5:
+                    bank_res[3] = 1.0
+                elif num_res <= 7:
+                    bank_res[4] = 1.0
+                elif num_res <= 10:
+                    bank_res[5] = 1.0
+                else:
+                    bank_res[6] = 1.0
+                bank_resources.append(bank_res)
+
+            """bank dev cards"""
+            dev_cards_left = len(self.game.development_cards_pile)
+            dev_cards_bank = np.zeros((7,))
+            if dev_cards_left <= 2:
+                dev_cards_bank[dev_cards_left] = 1.0
+            elif dev_cards_left <=5:
+                dev_cards_bank[3] = 1.0
+            elif dev_cards_left <= 7:
+                dev_cards_bank[4] = 1.0
+            elif dev_cards_left <= 10:
+                dev_cards_bank[5] = 1.0
+            else:
+                dev_cards_bank[6] = 1.0
+
+        else:
+            hidden_cards = None
+            num_hidden_dev_cards = np.zeros((6,))
+            num_cards = len(target_player.hidden_cards)
+            if num_cards <= 4:
+                num_hidden_dev_cards[num_cards] = 1.0
+            else:
+                num_hidden_dev_cards[-1] = 1.0
+
+
+        if target_player_id == "current":
+            main_inputs = np.concatenate(
+                (*resources, victory_points, *list(res_access.values()), longest_road, largest_army, harbour_access,
+                 *bank_resources, dev_cards_bank)
+            )
+        else:
+            main_inputs = np.concatenate(
+                (*min_resources, *max_resources, victory_points, *list(res_access.values()), longest_road,
+                 largest_army, harbour_access, other_player_id, num_hidden_dev_cards)
+            )
+
+        return main_inputs, played_cards, hidden_cards

@@ -18,14 +18,14 @@ class Player(object):
             self.player_lookup[self.player_order[ind]] = label
             self.inverse_player_lookup[label] = self.player_order[ind]
 
-        self.buildings = []
+        self.buildings = {}
         self.roads = []
         self.resources = {
-            Resource.Brick: 10,
-            Resource.Wood: 10,
-            Resource.Wheat: 10,
-            Resource.Ore: 10,
-            Resource.Sheep: 10
+            Resource.Brick: 0,
+            Resource.Wood: 0,
+            Resource.Wheat: 0,
+            Resource.Ore: 0,
+            Resource.Sheep: 0
         }
         self.visible_resources = {
             Resource.Brick: self.resources[Resource.Brick],
@@ -44,4 +44,15 @@ class Player(object):
         self.longest_road = 0
         self.hidden_cards = []
         self.visible_cards = []
+
+        """TESTING - initialise w random dev cards"""
+        # import numpy as np
+        # from game.enums import DevelopmentCard
+        # n_hidden_cards = int(np.random.randint(0, 5))
+        # self.hidden_cards = [np.random.choice([DevelopmentCard.Monopoly, DevelopmentCard.YearOfPlenty, DevelopmentCard.Knight,
+        #                                        DevelopmentCard.RoadBuilding, DevelopmentCard.VictoryPoint]) for _ in range(n_hidden_cards)]
+        # n_visible_cards = int(np.random.randint(0, 5))
+        # self.visible_cards = [np.random.choice([DevelopmentCard.Monopoly, DevelopmentCard.YearOfPlenty, DevelopmentCard.Knight,
+        #                                        DevelopmentCard.RoadBuilding, DevelopmentCard.VictoryPoint]) for _ in range(n_visible_cards)]
+
         self.victory_points = 0

@@ -31,13 +31,13 @@ def get_args():
         '--seed', type=int, default=0
     )
     parser.add_argument(
-        '--num-processes', type=int, default=1
+        '--num-processes', type=int, default=8
     )
     parser.add_argument(
-        '--num-envs-per-process', type=int, default=1
+        '--num-envs-per-process', type=int, default=32
     )
     parser.add_argument(
-        '--num-steps', type=int, default=50
+        '--num-steps', type=int, default=25
     )
     parser.add_argument(
         '--ppo-epoch', type=int, default=4
@@ -46,7 +46,7 @@ def get_args():
         '--num-mini-batch', type=int, default=16
     )
     parser.add_argument(
-        '--clip-param', type=float, default=0.25
+        '--clip-param', type=float, default=0.2
     )
     parser.add_argument(
         '--total-env-steps', type=int, default=100e6
@@ -64,16 +64,19 @@ def get_args():
         '--num-policies-to-store', type=int, default=100
     )
     parser.add_argument(
-        '--add-policy-every', type=int, default=100, help='add new policy every this many updates'
+        '--add-policy-every', type=int, default=10, help='add new policy every this many updates'
     )
     parser.add_argument(
-        '--update-opponent-policies-every', type=int, default=100
+        '--update-opponent-policies-every', type=int, default=10
     )
     parser.add_argument(
-        '--eval-every', type=int, default=100
+        '--eval-every', type=int, default=250
     )
     parser.add_argument(
         '--num-eval-episodes', type=int, default=100
+    )
+    parser.add_argument(
+        '--num-eval-processes', type=int, default=8
     )
     parser.add_argument(
         '--load-from-checkpoint', action='store_true', default=False

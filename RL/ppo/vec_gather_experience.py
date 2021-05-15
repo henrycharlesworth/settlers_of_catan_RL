@@ -11,6 +11,7 @@ def _worker(
 ) -> None:
     parent_remote.close()
 
+    torch.set_num_threads(1)
     game_manager = manager_fn_wrapper.var()
 
     while True:
@@ -34,6 +35,7 @@ def _worker(
                 state_dict = data[0].var
                 policy_id = data[1]
                 game_manager._update_policy(state_dict, policy_id)
+
                 remote.send(True)
             elif cmd == "seed":
                 np.random.seed(data)
@@ -93,7 +95,7 @@ class SubProcGameManager(object):
                 remote.send(("update_policy", (CloudpickleWrapper(state_dict), policy_id)))
             results = [remote.recv() for remote in self.remotes]
         else:
-            self.remotes[process_id].send(("update_policy", CloudpickleWrapper(state_dict), policy_id))
+            self.remotes[process_id].send(("update_policy", (CloudpickleWrapper(state_dict), policy_id)))
             results = self.remotes[process_id].recv()
         return results
 

@@ -96,7 +96,7 @@ def main():
             update_opponent_policies(earlier_policies, rollout_manager, args)
             rollout_manager.reset()
 
-        if update_num % args.eval_every == 0:
+        if update_num % args.eval_every == 0 and update_num > 0:
             log, print_summary = run_evaluation_protocol(evaluation_manager, central_policy, earlier_policies,
                                                          random_policy, args, update_num)
             eval_logs.append(log)

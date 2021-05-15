@@ -68,7 +68,7 @@ class EvaluationManager(object):
 
         winner = self.order.index(self.env.winner.id)
 
-        print(winner)
+        # print(winner)
 
         victory_points = self.env.curr_vps[self.order[0]]
         return winner, victory_points, total_game_steps, policy_decisions

@@ -31,10 +31,10 @@ def get_args():
         '--seed', type=int, default=0
     )
     parser.add_argument(
-        '--num-processes', type=int, default=8
+        '--num-processes', type=int, default=12
     )
     parser.add_argument(
-        '--num-envs-per-process', type=int, default=32
+        '--num-envs-per-process', type=int, default=20
     )
     parser.add_argument(
         '--num-steps', type=int, default=25
@@ -70,7 +70,7 @@ def get_args():
         '--update-opponent-policies-every', type=int, default=10
     )
     parser.add_argument(
-        '--eval-every', type=int, default=250
+        '--eval-every', type=int, default=100
     )
     parser.add_argument(
         '--num-eval-episodes', type=int, default=100

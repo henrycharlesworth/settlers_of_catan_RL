@@ -244,10 +244,11 @@ class EnvWrapper(object):
                     valid_actions[10] = valid_exch_res
         #exchange resources
         valid_resources_to_exchange = self._get_valid_exchange_resources(player)
-        if sum(valid_resources_to_exchange) > 0:
+        valid_resources_to_receive = self._get_valid_exchange_receive_resources()
+        if sum(valid_resources_to_exchange) > 0 and sum(valid_resources_to_receive) > 0:
             valid_actions[0][ActionTypes.ExchangeResource] = 1.0
             valid_actions[9][0] = valid_resources_to_exchange
-            valid_actions[10] = self._get_valid_exchange_receive_resources()
+            valid_actions[10] = valid_resources_to_receive
         #move robber - no tile constraints
         if self.game.can_move_robber:
             valid_actions[0][ActionTypes.MoveRobber] = 1.0

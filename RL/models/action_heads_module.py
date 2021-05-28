@@ -65,7 +65,12 @@ class MultiActionHeadsGeneralised(nn.Module):
                     if head.type == "normal":
                         head_action = head_distribution.rsample()
                     else:
-                        head_action = head_distribution.sample()
+
+                        try:
+                            head_action = head_distribution.sample()
+                        except:
+                            torch.save((head_distribution, main_head_inputs, head_mask, custom_inputs, i), "inside_head_error.pt")
+                            print("successfully dumped inner info")
 
                 if head.type == "categorical":
                     one_hot_head_action = torch.zeros(main_input.size(0), head.output_dim, device=self.dummy_param.device)

@@ -5,6 +5,8 @@ class PPO():
     def __init__(self, actor_critic, args):
         self.actor_critic = actor_critic
 
+        self.args = args
+
         self.clip_param = args.clip_param
         self.ppo_epoch = args.ppo_epoch
         self.num_mini_batch = args.num_mini_batch
@@ -20,7 +22,7 @@ class PPO():
 
         self.optimiser = torch.optim.Adam(actor_critic.parameters(), lr=args.lr, eps=args.eps)
 
-    def update(self, rollout_storage):
+    def update(self, rollout_storage, alt_generator=False):
         value_loss_epoch = 0
         action_loss_epoch = 0
         entropy_loss_epoch = 0
@@ -29,7 +31,13 @@ class PPO():
             with torch.no_grad():
                 rollout_storage.compute_advantages(self.actor_critic)
 
-            data_generator = rollout_storage.generator(self.num_mini_batch)
+            if alt_generator:
+                total_batch_size = rollout_storage.num_parallel * rollout_storage.num_steps
+                data_generator = rollout_storage.generator_alt(num_mini_batch=self.num_mini_batch,
+                                                               total_batch_size=total_batch_size,
+                                                               truncated_seq_len=self.args.truncated_seq_len)
+            else:
+                data_generator = rollout_storage.generator(self.num_mini_batch)
 
             for sample in data_generator:
                 obs_dict_batch, recurrent_batch, actions_batch, action_masks_batch, value_preds_batch, returns_batch, \

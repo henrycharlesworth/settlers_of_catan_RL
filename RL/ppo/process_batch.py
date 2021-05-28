@@ -43,21 +43,21 @@ class BatchProcessor(object):
                 self.obs_dict[key] = p3.view(self.num_steps + 1, self.num_parallel, p3.shape[1]).to(self.device)
             else:
                 self.obs_dict[key] = torch.stack(
-                    [torch.vstack([obs[k][t][key] for k in range(self.num_parallel)]) for t in range(self.num_steps+1)]
+                    [torch.cat([obs[k][t][key] for k in range(self.num_parallel)], dim=0) for t in range(self.num_steps+1)]
                 ).to(self.device)
 
         hidden_states = [inner for outer in rollouts[1] for inner in outer]
         self.hidden_states = (
-            torch.stack([torch.vstack([hidden_states[k][t][0] for k in range(self.num_parallel)]) for t in
+            torch.stack([torch.cat([hidden_states[k][t][0] for k in range(self.num_parallel)], dim=0) for t in
                          range(self.num_steps+1)]).to(self.device),
-            torch.stack([torch.vstack([hidden_states[k][t][1] for k in range(self.num_parallel)]) for t in
+            torch.stack([torch.cat([hidden_states[k][t][1] for k in range(self.num_parallel)], dim=0) for t in
                          range(self.num_steps + 1)]).to(self.device)
         )
 
         rewards = [inner for outer in rollouts[2] for inner in outer]
         self.rewards = torch.stack([
-            torch.vstack([torch.tensor(rewards[k][t], dtype=torch.float32, device=self.device).view(1,1)
-                          for k in range(self.num_parallel)]) for t in range(self.num_steps)
+            torch.cat([torch.tensor(rewards[k][t], dtype=torch.float32, device=self.device).view(1,1)
+                          for k in range(self.num_parallel)], dim=0) for t in range(self.num_steps)
         ]).to(self.device)
 
         actions = [inner for outer in rollouts[3] for inner in outer]
@@ -65,8 +65,8 @@ class BatchProcessor(object):
         for i in range(self.num_action_heads):
             self.actions.append(
                 torch.stack(
-                    [torch.vstack([torch.tensor(np.array(actions[k][t][i]), dtype=torch.long, device=self.device).view(1,-1) \
-                                   for k in range(self.num_parallel)]) for t in range(self.num_steps)]
+                    [torch.cat([torch.tensor(np.array(actions[k][t][i]), dtype=torch.long, device=self.device).view(1,-1) \
+                                   for k in range(self.num_parallel)], dim=0) for t in range(self.num_steps)]
                 ).to(self.device)
             )
 
@@ -81,19 +81,19 @@ class BatchProcessor(object):
             else:
                 self.action_masks.append(
                     torch.stack(
-                        [torch.vstack([action_masks[k][t][i] for k in range(self.num_parallel)]) for t in range(self.num_steps)]
+                        [torch.cat([action_masks[k][t][i] for k in range(self.num_parallel)], dim=0) for t in range(self.num_steps)]
                     ).to(self.device)
                 )
 
         action_log_probs = [inner for outer in rollouts[5] for inner in outer]
         self.action_log_probs = torch.stack([
-            torch.vstack([action_log_probs[k][t] for k in range(self.num_parallel)]) for t in range(self.num_steps)
+            torch.cat([action_log_probs[k][t] for k in range(self.num_parallel)], dim=0) for t in range(self.num_steps)
         ]).to(self.device)
 
         masks = [inner for outer in rollouts[6] for inner in outer]
         self.masks = torch.stack([
-           torch.vstack([
-               torch.tensor(masks[k][t], dtype=torch.float32).view(1,1) for k in range(self.num_parallel)]) \
+           torch.cat([
+               torch.tensor(masks[k][t], dtype=torch.float32).view(1,1) for k in range(self.num_parallel)], dim=0) \
                for t in range(self.num_steps+1)
         ]).to(self.device)
 
@@ -203,4 +203,97 @@ class BatchProcessor(object):
             adv_targets = _flatten_helper(self.num_steps, num_envs_per_batch, adv_targets)
 
             yield obs_dict_batch, recurrent_hidden_state_batch, actions_batch, action_masks_batch, value_preds_batch, \
+                  returns_batch, masks_batch, old_action_log_probs_batch, adv_targets
+
+    def generator_alt(self, num_mini_batch, total_batch_size, truncated_seq_len):
+        T = self.num_steps
+        num_parallel = self.num_parallel
+        assert T % truncated_seq_len == 0
+
+        num_sequences_per_minibatch = total_batch_size // num_mini_batch // truncated_seq_len
+        N = num_sequences_per_minibatch
+        time_inds = [];
+        process_inds = []
+        for p_id in range(num_parallel):
+            for t_s in range(0, T, truncated_seq_len):
+                process_inds.append([p_id] * truncated_seq_len)
+                time_inds.append(np.arange(t_s, t_s + truncated_seq_len))
+        inds_permutation = np.random.permutation(len(time_inds))
+
+        for start_ind in range(0, len(inds_permutation), num_sequences_per_minibatch):
+            obs_dict_batch = {}
+            for key in self.obs_keys:
+                obs_dict_batch[key] = []
+
+            recurrent_hidden_batch = [[], []]
+            actions_batch = [[] for _ in range(self.num_action_heads)]
+            action_masks_batch = [[] for _ in range(self.num_action_heads)]
+            value_preds_batch = []
+            returns_batch = []
+            masks_batch = []
+            old_action_log_probs_batch = []
+            adv_targets = []
+
+            for offset in range(num_sequences_per_minibatch):
+                t_inds = time_inds[inds_permutation[start_ind + offset]]
+                p_inds = process_inds[inds_permutation[start_ind + offset]]
+
+                for key in self.obs_keys:
+                    obs_dict_batch[key].append(self.obs_dict[key][t_inds, p_inds, ...])
+
+                recurrent_hidden_batch[0].append(self.hidden_states[0][t_inds[0]:t_inds[1], p_inds[0], ...])
+                recurrent_hidden_batch[1].append(self.hidden_states[1][t_inds[0]:t_inds[1], p_inds[0], ...])
+
+                for i in range(self.num_action_heads):
+                    actions_batch[i].append(self.actions[i][t_inds, p_inds, ...])
+                    if i in self.type_conditional_masks:
+                        action_masks_batch[i].append(self.action_masks[i][:, t_inds, p_inds, ...])
+                    else:
+                        action_masks_batch[i].append(self.action_masks[i][t_inds, p_inds, ...])
+
+                value_preds_batch.append(self.values[t_inds, p_inds])
+                returns_batch.append(self.returns[t_inds, p_inds])
+                masks_batch.append(self.masks[t_inds, p_inds])
+                old_action_log_probs_batch.append(self.action_log_probs[t_inds, p_inds])
+                adv_targets.append(self.advantages[t_inds, p_inds])
+
+            for key in self.obs_keys:
+                obs_dict_batch[key] = torch.stack(obs_dict_batch[key], 1)
+
+            recurrent_hidden_batch[0] = torch.stack(recurrent_hidden_batch[0], 1).view(N, -1)
+            recurrent_hidden_batch[1] = torch.stack(recurrent_hidden_batch[1], 1).view(N, -1)
+
+            for i in range(self.num_action_heads):
+                actions_batch[i] = torch.stack(actions_batch[i], 1)
+                if i in self.type_conditional_masks:
+                    action_masks_batch[i] = torch.stack(action_masks_batch[i], 2)
+                else:
+                    action_masks_batch[i] = torch.stack(action_masks_batch[i], 1)
+
+            value_preds_batch = torch.stack(value_preds_batch, 1)
+            returns_batch = torch.stack(returns_batch, 1)
+            masks_batch = torch.stack(masks_batch, 1)
+            old_action_log_probs_batch = torch.stack(old_action_log_probs_batch, 1)
+            adv_targets = torch.stack(adv_targets, 1)
+
+            # flatten
+            for key in self.obs_keys:
+                obs_dict_batch[key] = _flatten_helper(truncated_seq_len, N, obs_dict_batch[key])
+
+            for i in range(self.num_action_heads):
+                actions_batch[i] = _flatten_helper(truncated_seq_len, N, actions_batch[i])
+                if i in self.type_conditional_masks:
+                    num_types = action_masks_batch[i].shape[0]
+                    T, N = action_masks_batch[i].shape[1], action_masks_batch[i].shape[2]
+                    action_masks_batch[i] = action_masks_batch[i].view(num_types, T * N, -1)
+                else:
+                    action_masks_batch[i] = _flatten_helper(truncated_seq_len, N, action_masks_batch[i])
+
+            value_preds_batch = _flatten_helper(truncated_seq_len, N, value_preds_batch)
+            returns_batch = _flatten_helper(truncated_seq_len, N, returns_batch)
+            masks_batch = _flatten_helper(truncated_seq_len, N, masks_batch)
+            old_action_log_probs_batch = _flatten_helper(truncated_seq_len, N, old_action_log_probs_batch)
+            adv_targets = _flatten_helper(truncated_seq_len, N, adv_targets)
+
+            yield obs_dict_batch, recurrent_hidden_batch, actions_batch, action_masks_batch, value_preds_batch, \
                   returns_batch, masks_batch, old_action_log_probs_batch, adv_targets

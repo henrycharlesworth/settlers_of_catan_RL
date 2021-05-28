@@ -81,14 +81,41 @@ class GamesAndPoliciesManager(object):
                     obs = self.current_observations[env_num][players_go]
                     hidden_states = self.current_hidden_states[env_num][players_go]
                     action_masks = self.policies[0].act_masks_to_torch(self.envs[env_num].get_action_masks())
-                    _, actions, action_log_probs, hidden_states = self.policy_maps[env_num][players_go].act(
-                        obs, hidden_states, terminal_mask, action_masks
-                    )
+
+
+                    try:
+                        _, actions, action_log_probs, hidden_states = self.policy_maps[env_num][players_go].act(
+                            obs, hidden_states, terminal_mask, action_masks
+                        )
+                    except Exception:
+                        torch.save((self.policy_maps[env_num][players_go], players_go, obs, hidden_states, action_masks),
+                                   "outside_action_error.pt")
+                        print("successfully dumped outer info")
 
                     self.current_hidden_states[env_num][players_go] = hidden_states
 
-                    obs, reward, done, _ = self.envs[env_num].step(self.policies[0].torch_act_to_np(actions))
-                    obs = self.policies[0].obs_to_torch(obs)
+                    try:
+                        obs, reward, done, _ = self.envs[env_num].step(self.policies[0].torch_act_to_np(actions))
+                        obs = self.policies[0].obs_to_torch(obs)
+                    except:
+                        torch.save((self.envs[env_num].game.players, self.envs[env_num].game.resource_bank,
+                                    actions, action_masks, hidden_states, players_go, obs),
+                                   "step_error_info.pt")
+                        print("Successfully dumped step error info.")
+
+                        """try and save/reset"""
+                        obs = self.policies[0].obs_to_torch(self.envs[env_num].reset())
+                        players_go = self._get_players_turn(self.envs[env_num])
+                        self.current_observations[env_num] = {}
+                        self.current_observations[env_num][players_go] = obs
+
+                        for player_id in [PlayerId.Blue, PlayerId.Red, PlayerId.Orange, PlayerId.White]:
+                            self.current_hidden_states[env_num][player_id] = (
+                            torch.zeros(1, self.policies[0].lstm_size, device=self.device),
+                            torch.zeros(1, self.policies[0].lstm_size, device=self.device))
+                        """"""
+                        reward = 0.0
+                        done = True
 
                     for player_id in [PlayerId.White, PlayerId.Blue, PlayerId.Red, PlayerId.Orange]:
                         rewards[player_id] += reward[player_id]

@@ -3,6 +3,7 @@ import os
 import sys
 import copy
 import numpy as np
+import torch
 from scipy.spatial.distance import pdist, squareform
 from tkinter import messagebox, Tk
 
@@ -22,10 +23,18 @@ def draw_polygon_alpha(surface, color, points):
     surface.blit(shape_surf, target_rect)
 
 class Display(object):
-    def __init__(self, game, interactive=False, debug_mode=False):
-        self.game = game
+    def __init__(self, game=None, env=None, interactive=False, debug_mode=False, policies=None, test=False):
+        if game is None:
+            if env is None:
+                raise RuntimeError("Need to provide display with either game or env")
+            self.env = env
+        else:
+            self.env = env
+            self.game = game
         self.interactive = interactive
         self.debug_mode = debug_mode
+
+        self.policies = policies
 
         self.hexagon_side_len = 82.25 * 1.0
         self.hexagon_height = int(2 * self.hexagon_side_len)
@@ -208,6 +217,9 @@ class Display(object):
         self.building_cost_menu = pygame.image.load(os.path.join(*self.image_path, "menu/building_cost_menu.png"))
         self.tick_image = pygame.image.load(os.path.join(*self.image_path, "menu/tick.png"))
 
+        self.ai_play_image = pygame.transform.scale(
+            pygame.image.load(os.path.join(*self.image_path, "menu/ai_go.png")), (150, 150))
+
         pygame.init()
         pygame.font.init()
         self.top_menu_font = pygame.font.SysFont('Arial', 45)
@@ -336,7 +348,7 @@ class Display(object):
         self.reset()
 
         if self.interactive:
-            self.run_event_loop()
+            self.run_event_loop(test=test)
 
     def reset(self):
         self.active_other_player = []
@@ -515,6 +527,8 @@ class Display(object):
             card_count = self.count_font.render(text, False, (255, 255, 255))
             self.screen.blit(card_count, (card_pos[0] + shift - 15, card_pos[1] + 105))
             card_pos[0] += shift
+
+        self.screen.blit(self.ai_play_image, (30, self.screen.get_height()-180))
 
     def render_top_menu(self):
         if self.game.must_respond_to_trade:
@@ -724,8 +738,74 @@ class Display(object):
             self.invisible_hexagons.append(hexagon)
             self.invisible_hexagon_points.append(points.copy())
 
-    def run_event_loop(self):
+    def initialise_AI(self):
+        self.curr_hidden_states = {}
+        for player_id in [PlayerId.White, PlayerId.Blue, PlayerId.Red, PlayerId.Orange]:
+            if isinstance(self.policies[player_id], str):
+                pass
+            else:
+                self.dummy_policy = self.policies[player_id]
+                self.curr_hidden_states[player_id] =  (torch.zeros(1, self.dummy_policy.lstm_size, device=self.dummy_policy.dummy_param.device),
+                                                       torch.zeros(1, self.dummy_policy.lstm_size, device=self.dummy_policy.dummy_param.device))
+
+    def step_AI(self):
+        players_go = self.get_players_turn()
+        if isinstance(self.policies[players_go], str):
+            messagebox.showinfo('Error', "It is currently a human player's turn.")
+            return False
+        else:
+            curr_obs = self.dummy_policy.obs_to_torch(self.env._get_obs())
+            curr_hidden_state = self.curr_hidden_states[players_go]
+            action_masks = self.dummy_policy.act_masks_to_torch(self.env.get_action_masks())
+
+            _, actions, _, hidden_states = self.policies[players_go].act(
+                curr_obs, curr_hidden_state, torch.ones(1, 1, device=self.dummy_policy.dummy_param.device),
+                action_masks
+            )
+            self.curr_hidden_states[players_go] = hidden_states
+
+            _, _, done, info = self.env.step(
+                self.dummy_policy.torch_act_to_np(actions)
+            )
+            self.update_game_log(info["log"])
+            if done:
+                if players_go == PlayerId.Orange:
+                    winner = "Orange"
+                elif players_go == PlayerId.Red:
+                    winner = "Red"
+                elif players_go == PlayerId.Blue:
+                    winner = "Blue"
+                elif players_go == PlayerId.White:
+                    winner = "White"
+                final_message = "Game over. {} player wins!".format(winner)
+                messagebox.showinfo('Game over', final_message)
+            return done
+
+    def get_players_turn(self):
+        if self.game.must_respond_to_trade:
+            player_id = self.game.proposed_trade["target_player"]
+        else:
+            player_id = self.game.players_go
+        return player_id
+
+    def run_event_loop(self, test=False):
         run = True
+
+        if self.policies is not None:
+            self.initialise_AI()
+
+        # if test:
+        #     while run:
+        #         pygame.time.delay(100)
+        #         done = self.step_AI()
+        #         if done:
+        #             break
+        #
+        #         pygame.display.update()
+        #         self.game_log_sftext.post_update()
+        #         pygame.event.pump()
+        #     return
+
         while run:
             pygame.time.delay(150)
             Tk().wm_withdraw()
@@ -741,6 +821,17 @@ class Display(object):
             mouse_click = False
             over_corner = False
             over_edge = False
+
+            if test:
+                done = self.step_AI()
+                if done:
+                    break
+
+                pygame.display.update()
+                self.game_log_sftext.post_update()
+                pygame.event.pump()
+                continue
+
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -769,7 +860,7 @@ class Display(object):
                                 "type": ActionTypes.PlaceSettlement,
                                 "corner": corner.id
                             }
-                            valid_action, error = self.game.validate_action(action)
+                            valid_action, error = self.game.validate_action(action, check_player=True)
                             if valid_action:
                                 action_log = self.game.apply_action(action)
                                 self.update_game_log(action_log)
@@ -790,7 +881,7 @@ class Display(object):
                                 "type": ActionTypes.UpgradeToCity,
                                 "corner": corner.id
                             }
-                            valid_action, error = self.game.validate_action(action)
+                            valid_action, error = self.game.validate_action(action, check_player=True)
                             if valid_action:
                                 action_log = self.game.apply_action(action)
                                 self.update_game_log(action_log)
@@ -810,7 +901,7 @@ class Display(object):
                                 "type": ActionTypes.PlaceRoad,
                                 "edge": edge.id
                             }
-                            valid_action, error = self.game.validate_action(action)
+                            valid_action, error = self.game.validate_action(action, check_player=True)
                             if valid_action:
                                 action_log = self.game.apply_action(action)
                                 self.update_game_log(action_log)
@@ -823,7 +914,7 @@ class Display(object):
                     action = {
                         "type": ActionTypes.RollDice
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -834,7 +925,7 @@ class Display(object):
                     action = {
                         "type": ActionTypes.EndTurn
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -845,7 +936,7 @@ class Display(object):
                     action = {
                         "type": ActionTypes.BuyDevelopmentCard
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -859,7 +950,7 @@ class Display(object):
                         "type": ActionTypes.PlayDevelopmentCard,
                         "card": DevelopmentCard.Knight
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -873,7 +964,7 @@ class Display(object):
                         "type": ActionTypes.PlayDevelopmentCard,
                         "card": DevelopmentCard.VictoryPoint
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -887,7 +978,7 @@ class Display(object):
                         "type": ActionTypes.PlayDevelopmentCard,
                         "card": DevelopmentCard.RoadBuilding
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -912,7 +1003,7 @@ class Display(object):
                         "resource_1": resource_1,
                         "resource_2": resource_2
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -935,7 +1026,7 @@ class Display(object):
                         "card": DevelopmentCard.Monopoly,
                         "resource": resource
                     }
-                    valid_action, error = self.game.validate_action(action)
+                    valid_action, error = self.game.validate_action(action, check_player=True)
                     if valid_action:
                         action_log = self.game.apply_action(action)
                         self.update_game_log(action_log)
@@ -1017,7 +1108,7 @@ class Display(object):
                             action["exchange_rate"] = 4
                         action["desired_resource"] = self.active_harbour_receive_res[0]
                         action["trading_resource"] = self.active_harbour_trade_res[0]
-                        valid_action, error = self.game.validate_action(action)
+                        valid_action, error = self.game.validate_action(action, check_player=True)
                         if valid_action:
                             action_log = self.game.apply_action(action)
                             self.update_game_log(action_log)
@@ -1050,7 +1141,7 @@ class Display(object):
                             "type": ActionTypes.StealResource,
                             "target": self.active_other_player[0]
                         }
-                        valid_action, error = self.game.validate_action(action)
+                        valid_action, error = self.game.validate_action(action, check_player=True)
                         if valid_action:
                             action_log = self.game.apply_action(action)
                             self.update_game_log(action_log)
@@ -1063,7 +1154,7 @@ class Display(object):
                             "type": ActionTypes.RespondToOffer,
                             "response": "reject"
                         }
-                        valid_action, error = self.game.validate_action(action)
+                        valid_action, error = self.game.validate_action(action, check_player=True)
                         if valid_action:
                             action_log = self.game.apply_action(action)
                             self.update_game_log(action_log)
@@ -1076,7 +1167,7 @@ class Display(object):
                             "type": ActionTypes.RespondToOffer,
                             "response": "accept"
                         }
-                        valid_action, error = self.game.validate_action(action)
+                        valid_action, error = self.game.validate_action(action, check_player=True)
                         if valid_action:
                             action_log = self.game.apply_action(action)
                             self.update_game_log(action_log)
@@ -1099,12 +1190,16 @@ class Display(object):
                                 "target_player": self.active_other_player[0],
                                 "target_player_res": self.active_receive_res
                             }
-                            valid_action, error = self.game.validate_action(action)
+                            valid_action, error = self.game.validate_action(action, check_player=True)
                             if valid_action:
                                 action_log = self.game.apply_action(action)
                                 self.update_game_log(action_log)
                             else:
                                 messagebox.showinfo('Error', error)
+            elif mouse_pos[0] > 30 and mouse_pos[0] < 180 and mouse_pos[1] > self.screen.get_height() - 180 and \
+                mouse_pos[1] < self.screen.get_height() - 30:
+                if mouse_click:
+                    self.step_AI()
             else:
                 for res in [Resource.Wood, Resource.Brick, Resource.Sheep, Resource.Wheat, Resource.Ore]:
                     box = self.trade_player_resource_boxes[res]
@@ -1142,7 +1237,7 @@ class Display(object):
                                     "type": ActionTypes.MoveRobber,
                                     "tile": self.game.board.tiles[z].id
                                 }
-                                valid_action, error = self.game.validate_action(action)
+                                valid_action, error = self.game.validate_action(action, check_player=True)
                                 if valid_action:
                                     action_log = self.game.apply_action(action)
                                     self.update_game_log(action_log)

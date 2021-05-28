@@ -9,7 +9,7 @@ N_TILES = 19
 
 class EnvWrapper(object):
     def __init__(self, interactive=False, max_actions_per_turn=None, max_proposed_trades_per_turn = 4,
-                 validate_actions=True, debug_mode=False, win_reward=100, vp_reward=True):
+                 validate_actions=True, debug_mode=False, win_reward=500, vp_reward=True, policies=None):
         if max_actions_per_turn is None:
             self.max_actions_per_turn = np.inf
         else:
@@ -20,7 +20,7 @@ class EnvWrapper(object):
         actions it will probably fuck everything up.
         """
         self.validate_actions = validate_actions
-        self.game = Game(interactive=interactive, debug_mode=debug_mode)
+        self.game = Game(interactive=interactive, debug_mode=debug_mode, policies=policies)
 
         self.win_reward = win_reward
         self.vp_reward = vp_reward
@@ -37,13 +37,13 @@ class EnvWrapper(object):
             valid_action, error = self.game.validate_action(translated_action)
             if valid_action == False:
                 raise RuntimeError(error)
-        self.game.apply_action(translated_action)
+        message = self.game.apply_action(translated_action)
 
         obs = self._get_obs()
 
         done, reward = self._get_done_and_rewards()
 
-        info = {}
+        info = {"log": message}
 
         return obs, reward, done, info
 
@@ -244,10 +244,11 @@ class EnvWrapper(object):
                     valid_actions[10] = valid_exch_res
         #exchange resources
         valid_resources_to_exchange = self._get_valid_exchange_resources(player)
-        if sum(valid_resources_to_exchange) > 0:
+        valid_resources_to_receive = self._get_valid_exchange_receive_resources()
+        if sum(valid_resources_to_exchange) > 0 and sum(valid_resources_to_receive) > 0:
             valid_actions[0][ActionTypes.ExchangeResource] = 1.0
             valid_actions[9][0] = valid_resources_to_exchange
-            valid_actions[10] = self._get_valid_exchange_receive_resources()
+            valid_actions[10] = valid_resources_to_receive
         #move robber - no tile constraints
         if self.game.can_move_robber:
             valid_actions[0][ActionTypes.MoveRobber] = 1.0

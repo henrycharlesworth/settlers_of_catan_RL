@@ -12,7 +12,7 @@ from game.utils import DFS
 from ui.display import Display
 
 class Game(object):
-    def __init__(self, board_config = {}, interactive=False, debug_mode=False):
+    def __init__(self, board_config = {}, interactive=False, debug_mode=False, policies=None):
         self.board = Board(**board_config)
         self.players = {
             PlayerId.Blue: Player(PlayerId.Blue),
@@ -23,8 +23,9 @@ class Game(object):
         self.reset()
         self.interactive = interactive
         self.debug_mode = debug_mode
+        self.policies = policies
         if interactive:
-            self.display = Display(self, interactive=interactive, debug_mode=debug_mode)
+            self.display = Display(self, interactive=interactive, debug_mode=debug_mode, policies=policies)
         else:
             self.display = None
 
@@ -76,6 +77,8 @@ class Game(object):
         self.development_cards_pile = deque(self.development_cards)
         self.longest_road = None
         self.largest_army = None
+
+        self.max_trade_resources = 4
 
         self.initial_placement_phase = True
         self.initial_settlements_placed = {
@@ -250,7 +253,17 @@ class Game(object):
                 self.player_order_id = 0
         self.players_go = self.player_order[self.player_order_id]
 
-    def validate_action(self, action):
+    def validate_action(self, action, check_player=False):
+        if check_player and self.policies is not None:
+            if self.must_respond_to_trade:
+                curr_player = self.players[self.proposed_trade["target_player"]].id
+            else:
+                curr_player = self.players[self.players_go].id
+            if isinstance(self.policies[curr_player], str) and self.policies[curr_player] == "human":
+                pass
+            else:
+                return False, "This player is registered as an AI. Click AI Decision to make them play."
+
         player = self.players[self.players_go]
 
         if action["type"] == ActionTypes.PlaceSettlement:

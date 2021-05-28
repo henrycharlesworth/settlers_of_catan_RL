@@ -13,13 +13,13 @@ def get_args():
         '--eps', type=float, default=1e-5, help="ADAM optimiser epsilon"
     )
     parser.add_argument(
-        '--gamma', type=float, default=0.99, help="discount factor"
+        '--gamma', type=float, default=0.997, help="discount factor"
     )
     parser.add_argument(
         '--gae-lambda', type=float, default=0.95
     )
     parser.add_argument(
-        '--entropy-coef', type=float, default=0.0
+        '--entropy-coef', type=float, default=0.05
     )
     parser.add_argument(
         '--value-loss-coef', type=float, default=0.5
@@ -37,19 +37,22 @@ def get_args():
         '--num-envs-per-process', type=int, default=32
     )
     parser.add_argument(
-        '--num-steps', type=int, default=25
+        '--num-steps', type=int, default=200
     )
     parser.add_argument(
-        '--ppo-epoch', type=int, default=4
+        '--truncated_seq_len', type=int, default=10
     )
     parser.add_argument(
-        '--num-mini-batch', type=int, default=16
+        '--ppo-epoch', type=int, default=6
     )
     parser.add_argument(
-        '--clip-param', type=float, default=0.2
+        '--num-mini-batch', type=int, default=8
     )
     parser.add_argument(
-        '--total-env-steps', type=int, default=100e6
+        '--clip-param', type=float, default=0.25
+    )
+    parser.add_argument(
+        '--total-env-steps', type=int, default=250e6
     )
     parser.add_argument(
         '--recompute-returns', action='store_true', default=False
@@ -64,19 +67,19 @@ def get_args():
         '--num-policies-to-store', type=int, default=100
     )
     parser.add_argument(
-        '--add-policy-every', type=int, default=10, help='add new policy every this many updates'
+        '--add-policy-every', type=int, default=5, help='add new policy every this many updates'
     )
     parser.add_argument(
-        '--update-opponent-policies-every', type=int, default=10
+        '--update-opponent-policies-every', type=int, default=1
     )
     parser.add_argument(
-        '--eval-every', type=int, default=250
+        '--eval-every', type=int, default=25
     )
     parser.add_argument(
-        '--num-eval-episodes', type=int, default=100
+        '--num-eval-episodes', type=int, default=50
     )
     parser.add_argument(
-        '--num-eval-processes', type=int, default=8
+        '--num-eval-processes', type=int, default=4
     )
     parser.add_argument(
         '--load-from-checkpoint', action='store_true', default=False

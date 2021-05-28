@@ -43,11 +43,13 @@ def main():
     ]
     rollout_manager = SubProcGameManager(rollout_manager_fns)
 
+    central_policy = build_agent_model(device=device)
+
     if args.load_from_checkpoint:
-        central_policy, earlier_policies, eval_logs, start_update, args = torch.load("RL/results/"+args.load_file_path)
+        central_policy_sd, earlier_policies, eval_logs, start_update, args = torch.load("RL/results/"+args.load_file_path)
         update_opponent_policies(earlier_policies, rollout_manager, args)
+        central_policy.load_state_dict(central_policy_sd)
     else:
-        central_policy = build_agent_model(device=device)
         earlier_policies = deque(maxlen=args.num_policies_to_store)
         earlier_policies.append(central_policy.state_dict())
         start_update = 0
@@ -78,7 +80,11 @@ def main():
         rollouts = rollout_manager.gather_rollouts()
         rollout_storage.process_rollouts(rollouts)
 
-        val_loss, action_loss, entropy_loss = agent.update(rollout_storage)
+        if args.truncated_seq_len != -1:
+            alt_generator = True
+        else:
+            alt_generator = False
+        val_loss, action_loss, entropy_loss = agent.update(rollout_storage, alt_generator=alt_generator)
 
         rollout_manager.update_policy(central_policy.state_dict(), policy_id=0)
 

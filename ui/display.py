@@ -823,15 +823,18 @@ class Display(object):
             over_edge = False
 
             if test:
-                done = self.step_AI()
-                if done:
-                    break
+                players_go = self.get_players_turn()
+                if isinstance(self.policies[players_go], str):
+                    pass
+                else:
+                    done = self.step_AI()
+                    if done:
+                        break
 
-                pygame.display.update()
-                self.game_log_sftext.post_update()
-                pygame.event.pump()
-                continue
-
+                    pygame.display.update()
+                    self.game_log_sftext.post_update()
+                    pygame.event.pump()
+                    continue
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:

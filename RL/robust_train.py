@@ -4,6 +4,7 @@ import numpy as np
 import random
 import torch
 import copy
+import signal
 
 from collections import deque
 
@@ -20,7 +21,12 @@ from RL.ppo.ppo import PPO
 from RL.ppo.vec_evaluation import SubProcEvaluationManager
 from RL.ppo.evaluation_manager import make_evaluation_manager
 
+update_num, rollout_manager, evaluation_manager = None, None, None
+DEBUG = False
+
 def main():
+    global update_num, rollout_manager, evaluation_manager
+
     args = get_args()
 
     random.seed(args.seed)
@@ -35,7 +41,7 @@ def main():
     experiment_dir = "RL/results"
     os.makedirs(experiment_dir, exist_ok=True)
 
-    #torch.set_num_threads(1)
+    # torch.set_num_threads(1)
     device = torch.device("cuda:0" if args.cuda else "cpu")
 
     rollout_manager_fns = [
@@ -55,6 +61,8 @@ def main():
         start_update = 0
         eval_logs = []
 
+    update_num = start_update
+
     random_policy_model = build_agent_model()
     random_policy = copy.deepcopy(random_policy_model.state_dict())
     del random_policy_model
@@ -72,7 +80,8 @@ def main():
     num_updates = int(args.total_env_steps) // args.num_steps // (args.num_processes * args.num_envs_per_process)
     steps_per_update = int(args.num_steps * args.num_processes * args.num_envs_per_process)
 
-    for update_num in range(start_update, num_updates):
+    def run_update():
+        global update_num
 
         if args.use_linear_lr_decay:
             utils.update_linear_schedule(agent.optimiser, update_num, num_updates, args.lr)
@@ -111,6 +120,34 @@ def main():
 
             torch.save((central_policy.state_dict(), earlier_policies, eval_logs, update_num, args),
                        "RL/results/"+args.expt_id+"_after_update_"+str(update_num)+".pt")
+
+    def timeout_handler(signum, frame):
+        print("Update exceeded specified timeout (something broke). Attempting to reinitialise everything and continue training!")
+
+        global rollout_manager, evaluation_manager
+        for process in rollout_manager.processes:
+            process.kill()
+        for process in evaluation_manager.processes:
+            process.kill()
+
+        rollout_manager = SubProcGameManager(rollout_manager_fns)
+        evaluation_manager = SubProcEvaluationManager(eval_manager_fns)
+
+        rollout_manager.update_policy(central_policy.state_dict(), policy_id=0)
+        update_opponent_policies(earlier_policies, rollout_manager, args)
+
+        print("Environments reinitialised - continuing training.")
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+
+    while update_num < num_updates:
+        if DEBUG:
+            run_update()
+        else:
+            signal.alarm(args.update_timeout * 60)
+            run_update()
+            signal.alarm(0)
+
 
 if __name__ == "__main__":
     main()

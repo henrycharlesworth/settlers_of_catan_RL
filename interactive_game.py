@@ -7,9 +7,9 @@ from RL.models.build_agent_model import build_agent_model
 
 device = "cpu"
 
-policy_1_sd, _, _, _, _ = torch.load("RL/results/default_after_update_2300.pt", map_location=device)
-policy_2_sd, _, _, _, _ = torch.load("RL/results/default_after_update_2275.pt", map_location=device)
-policy_3_sd, _, _, _, _ = torch.load("RL/results/default_after_update_2250.pt", map_location=device)
+policy_1_sd, _, _, _, _ = torch.load("RL/results/default_after_update_25.pt", map_location=device)
+policy_2_sd, _, _, _, _ = torch.load("RL/results/default_after_update_25.pt", map_location=device)
+policy_3_sd, _, _, _, _ = torch.load("RL/results/default_after_update_25.pt", map_location=device)
 policy_1 = build_agent_model(device=device)
 policy_2 = build_agent_model(device=device)
 policy_3 = build_agent_model(device=device)

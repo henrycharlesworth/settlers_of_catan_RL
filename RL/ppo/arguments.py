@@ -13,13 +13,13 @@ def get_args():
         '--eps', type=float, default=1e-5, help="ADAM optimiser epsilon"
     )
     parser.add_argument(
-        '--gamma', type=float, default=0.997, help="discount factor"
+        '--gamma', type=float, default=0.999, help="discount factor"
     )
     parser.add_argument(
         '--gae-lambda', type=float, default=0.95
     )
     parser.add_argument(
-        '--entropy-coef', type=float, default=0.05
+        '--entropy-coef', type=float, default=0.0
     )
     parser.add_argument(
         '--value-loss-coef', type=float, default=0.5
@@ -31,25 +31,25 @@ def get_args():
         '--seed', type=int, default=0
     )
     parser.add_argument(
-        '--num-processes', type=int, default=8
+        '--num-processes', type=int, default=12
     )
     parser.add_argument(
-        '--num-envs-per-process', type=int, default=32
+        '--num-envs-per-process', type=int, default=20
     )
     parser.add_argument(
         '--num-steps', type=int, default=200
     )
     parser.add_argument(
-        '--truncated_seq_len', type=int, default=10
+        '--truncated_seq_len', type=int, default=20
     )
     parser.add_argument(
-        '--ppo-epoch', type=int, default=6
+        '--ppo-epoch', type=int, default=10
     )
     parser.add_argument(
-        '--num-mini-batch', type=int, default=8
+        '--num-mini-batch', type=int, default=16
     )
     parser.add_argument(
-        '--clip-param', type=float, default=0.25
+        '--clip-param', type=float, default=0.2
     )
     parser.add_argument(
         '--total-env-steps', type=int, default=250e6
@@ -89,6 +89,9 @@ def get_args():
     )
     parser.add_argument(
         '--expt-id', type=str, default="default"
+    ),
+    parser.add_argument(
+        '--update_timeout', type=int, default=10
     )
 
     args = parser.parse_args()

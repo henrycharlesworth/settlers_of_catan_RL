@@ -103,20 +103,6 @@ class GamesAndPoliciesManager(object):
                                    "step_error_info.pt")
                         print("Successfully dumped step error info.")
 
-                        """try and save/reset"""
-                        obs = self.policies[0].obs_to_torch(self.envs[env_num].reset())
-                        players_go = self._get_players_turn(self.envs[env_num])
-                        self.current_observations[env_num] = {}
-                        self.current_observations[env_num][players_go] = obs
-
-                        for player_id in [PlayerId.Blue, PlayerId.Red, PlayerId.Orange, PlayerId.White]:
-                            self.current_hidden_states[env_num][player_id] = (
-                            torch.zeros(1, self.policies[0].lstm_size, device=self.device),
-                            torch.zeros(1, self.policies[0].lstm_size, device=self.device))
-                        """"""
-                        reward = 0.0
-                        done = True
-
                     for player_id in [PlayerId.White, PlayerId.Blue, PlayerId.Red, PlayerId.Orange]:
                         rewards[player_id] += reward[player_id]
 

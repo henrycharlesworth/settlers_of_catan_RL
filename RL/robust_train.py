@@ -57,7 +57,9 @@ def main():
         central_policy.load_state_dict(central_policy_sd)
     else:
         earlier_policies = deque(maxlen=args.num_policies_to_store)
-        earlier_policies.append(central_policy.state_dict())
+        central_policy.to("cpu")
+        earlier_policies.append(copy.deepcopy(central_policy.state_dict()))
+        central_policy.to(device)
         start_update = 0
         eval_logs = []
 

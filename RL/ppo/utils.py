@@ -6,3 +6,6 @@ def update_linear_schedule(optimizer, epoch, total_num_epochs, initial_lr):
 
 def _flatten_helper(T, N, _tensor):
     return _tensor.view(T * N, *_tensor.size()[2:])
+
+def _flatten_helper_reshape(T, N, _tensor):
+    return _tensor.reshape(T * N, *_tensor.size()[2:])

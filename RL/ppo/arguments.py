@@ -19,7 +19,7 @@ def get_args():
         '--gae-lambda', type=float, default=0.95
     )
     parser.add_argument(
-        '--entropy-coef', type=float, default=0.0
+        '--entropy-coef', type=float, default=0.004
     )
     parser.add_argument(
         '--value-loss-coef', type=float, default=0.5
@@ -31,10 +31,10 @@ def get_args():
         '--seed', type=int, default=0
     )
     parser.add_argument(
-        '--num-processes', type=int, default=12
+        '--num-processes', type=int, default=128
     )
     parser.add_argument(
-        '--num-envs-per-process', type=int, default=20
+        '--num-envs-per-process', type=int, default=5
     )
     parser.add_argument(
         '--num-steps', type=int, default=200
@@ -52,7 +52,7 @@ def get_args():
         '--clip-param', type=float, default=0.2
     )
     parser.add_argument(
-        '--total-env-steps', type=int, default=250e6
+        '--total-env-steps', type=int, default=500e6
     )
     parser.add_argument(
         '--recompute-returns', action='store_true', default=False
@@ -76,10 +76,10 @@ def get_args():
         '--eval-every', type=int, default=25
     )
     parser.add_argument(
-        '--num-eval-episodes', type=int, default=50
+        '--num-eval-episodes', type=int, default=128
     )
     parser.add_argument(
-        '--num-eval-processes', type=int, default=4
+        '--num-eval-processes', type=int, default=16
     )
     parser.add_argument(
         '--load-from-checkpoint', action='store_true', default=False
@@ -91,7 +91,7 @@ def get_args():
         '--expt-id', type=str, default="default"
     ),
     parser.add_argument(
-        '--update_timeout', type=int, default=10
+        '--update_timeout', type=int, default=15
     )
 
     args = parser.parse_args()

@@ -29,7 +29,7 @@ class PPO():
 
         for e in range(self.ppo_epoch):
             with torch.no_grad():
-                rollout_storage.compute_advantages(self.actor_critic)
+                rollout_storage.compute_advantages_alt(self.actor_critic, 10)
 
             if alt_generator:
                 total_batch_size = rollout_storage.num_parallel * rollout_storage.num_steps

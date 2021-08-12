@@ -95,7 +95,9 @@ def main():
             alt_generator = False
         val_loss, action_loss, entropy_loss = agent.update(rollout_storage, alt_generator=alt_generator)
 
+        central_policy.to("cpu")
         rollout_manager.update_policy(central_policy.state_dict(), policy_id=0)
+        central_policy.to(device)
 
         t_current = time.time()
         print(
@@ -105,7 +107,9 @@ def main():
             ))
 
         if update_num % args.add_policy_every == 0 and update_num > 0:
+            central_policy.to("cpu")
             earlier_policies.append(central_policy.state_dict())
+            central_policy.to(device)
 
         if update_num % args.update_opponent_policies_every == 0:
             update_opponent_policies(earlier_policies, rollout_manager, args)

@@ -46,7 +46,7 @@ def get_args():
         '--ppo-epoch', type=int, default=10
     )
     parser.add_argument(
-        '--num-mini-batch', type=int, default=16
+        '--num-mini-batch', type=int, default=64
     )
     parser.add_argument(
         '--clip-param', type=float, default=0.2

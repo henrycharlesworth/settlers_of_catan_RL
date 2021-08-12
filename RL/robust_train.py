@@ -127,6 +127,8 @@ def main():
             torch.save((central_policy.state_dict(), earlier_policies, eval_logs, update_num, args),
                        "RL/results/"+args.expt_id+"_after_update_"+str(update_num)+".pt")
 
+        update_num += 1
+
     def timeout_handler(signum, frame):
         print("Update exceeded specified timeout (something broke). Attempting to reinitialise everything and continue training!")
 

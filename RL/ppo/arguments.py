@@ -40,7 +40,7 @@ def get_args():
         '--num-steps', type=int, default=200
     )
     parser.add_argument(
-        '--truncated_seq_len', type=int, default=20
+        '--truncated-seq-len', type=int, default=20
     )
     parser.add_argument(
         '--ppo-epoch', type=int, default=10

@@ -202,8 +202,8 @@ class BatchProcessor(object):
             for key in self.obs_keys:
                 obs_dict_batch[key] = torch.stack(obs_dict_batch[key], 1)
 
-            recurrent_hidden_state_batch[0] = torch.stack(recurrent_hidden_state_batch[0], 1).view(num_envs_per_batch, -1)
-            recurrent_hidden_state_batch[1] = torch.stack(recurrent_hidden_state_batch[1], 1).view(num_envs_per_batch, -1)
+            recurrent_hidden_state_batch[0] = torch.stack(recurrent_hidden_state_batch[0], 1).view(num_envs_per_batch, -1).to(self.device)
+            recurrent_hidden_state_batch[1] = torch.stack(recurrent_hidden_state_batch[1], 1).view(num_envs_per_batch, -1).to(self.device)
 
             for i in range(self.num_action_heads):
                 actions_batch[i] = torch.stack(actions_batch[i], 1)
@@ -295,8 +295,8 @@ class BatchProcessor(object):
             for key in self.obs_keys:
                 obs_dict_batch[key] = torch.stack(obs_dict_batch[key], 1)
 
-            recurrent_hidden_batch[0] = torch.stack(recurrent_hidden_batch[0], 1).view(N, -1)
-            recurrent_hidden_batch[1] = torch.stack(recurrent_hidden_batch[1], 1).view(N, -1)
+            recurrent_hidden_batch[0] = torch.stack(recurrent_hidden_batch[0], 1).view(N, -1).to(self.device)
+            recurrent_hidden_batch[1] = torch.stack(recurrent_hidden_batch[1], 1).view(N, -1).to(self.device)
 
             for i in range(self.num_action_heads):
                 actions_batch[i] = torch.stack(actions_batch[i], 1)

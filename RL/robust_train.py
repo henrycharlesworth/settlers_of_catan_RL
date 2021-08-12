@@ -108,7 +108,7 @@ def main():
 
         if update_num % args.add_policy_every == 0 and update_num > 0:
             central_policy.to("cpu")
-            earlier_policies.append(central_policy.state_dict())
+            earlier_policies.append(copy.deepcopy(central_policy.state_dict()))
             central_policy.to(device)
 
         if update_num % args.update_opponent_policies_every == 0:

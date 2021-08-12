@@ -102,7 +102,7 @@ def main():
         t_current = time.time()
         print(
             "Updates complete: {}. Total policy steps: {}. Number of games complete: {}. Total elapsed time: {} hours.".format(
-                update_num, steps_per_update * update_num, rollout_storage.games_complete,
+                update_num+1, steps_per_update * (update_num+1), rollout_storage.games_complete,
                             (t_current - start_time) / 3600.0
             ))
 

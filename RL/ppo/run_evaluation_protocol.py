@@ -25,6 +25,9 @@ def run_evaluation_protocol(evaluation_manager, central_policy, earlier_policies
         update_num
     )
 
+    start_device = central_policy.device
+    central_policy.to("cpu")
+
     for i, policy in enumerate(policies_to_play_against):
         policies = [copy.deepcopy(central_policy.state_dict()), copy.deepcopy(policies_to_play_against[i]),
                     copy.deepcopy(policies_to_play_against[i]), copy.deepcopy(policies_to_play_against[i])]
@@ -53,5 +56,7 @@ def run_evaluation_protocol(evaluation_manager, central_policy, earlier_policies
         )
 
     print_str += "\n"
+
+    central_policy.to(start_device)
 
     return log, print_str

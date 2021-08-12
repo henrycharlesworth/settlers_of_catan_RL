@@ -25,7 +25,7 @@ def run_evaluation_protocol(evaluation_manager, central_policy, earlier_policies
         update_num
     )
 
-    start_device = central_policy.device
+    start_device = central_policy.dummy_param.device
     central_policy.to("cpu")
 
     for i, policy in enumerate(policies_to_play_against):

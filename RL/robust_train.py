@@ -142,7 +142,9 @@ def main():
         rollout_manager = SubProcGameManager(rollout_manager_fns)
         evaluation_manager = SubProcEvaluationManager(eval_manager_fns)
 
+        central_policy.to("cpu")
         rollout_manager.update_policy(central_policy.state_dict(), policy_id=0)
+        central_policy.to(device)
         update_opponent_policies(earlier_policies, rollout_manager, args)
 
         print("Environments reinitialised - continuing training.")

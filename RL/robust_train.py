@@ -129,8 +129,8 @@ def main():
 
         update_num += 1
 
-    def timeout_handler(signum, frame):
-        print("Update exceeded specified timeout (something broke). Attempting to reinitialise everything and continue training!")
+    def fail_handler(signum, frame):
+        print("Error or update exceeded specified timeout (something broke). Attempting to reinitialise everything and continue training!")
 
         global rollout_manager, evaluation_manager
         for process in rollout_manager.processes:
@@ -146,15 +146,19 @@ def main():
 
         print("Environments reinitialised - continuing training.")
 
-    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.signal(signal.SIGALRM, fail_handler)
 
     while update_num < num_updates:
         if DEBUG:
             run_update()
         else:
-            signal.alarm(args.update_timeout * 60)
-            run_update()
-            signal.alarm(0)
+            try:
+                signal.alarm(args.update_timeout * 60)
+                run_update()
+                signal.alarm(0)
+            except:
+                fail_handler(None, None)
+                continue
 
 
 if __name__ == "__main__":

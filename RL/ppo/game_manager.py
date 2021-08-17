@@ -87,7 +87,7 @@ class GamesAndPoliciesManager(object):
                         _, actions, action_log_probs, hidden_states = self.policy_maps[env_num][players_go].act(
                             obs, hidden_states, terminal_mask, action_masks
                         )
-                    except Exception:
+                    except:
                         torch.save((self.policy_maps[env_num][players_go], players_go, obs, hidden_states, action_masks),
                                    "outside_action_error.pt")
                         print("successfully dumped outer info")

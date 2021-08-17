@@ -83,6 +83,7 @@ def main():
     steps_per_update = int(args.num_steps * args.num_processes * args.num_envs_per_process)
 
     def run_update():
+        # torch.cuda.empty_cache()
         global update_num
 
         if args.use_linear_lr_decay:

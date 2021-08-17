@@ -89,7 +89,7 @@ class GamesAndPoliciesManager(object):
                             obs, hidden_states, terminal_mask, action_masks
                         )
                     except:
-                        torch.save((self.policy_maps[env_num][players_go], players_go, obs, hidden_states, action_masks),
+                        torch.save((self.policy_maps[env_num][players_go].state_dict(), players_go, obs, hidden_states, action_masks),
                                    "action_error_" + str(int(np.random.randint(0,10000))) + ".pt")
                         print("successfully dumped action error info.")
 

@@ -1,4 +1,5 @@
 import random
+import numpy as np
 import torch
 import copy
 
@@ -89,8 +90,8 @@ class GamesAndPoliciesManager(object):
                         )
                     except:
                         torch.save((self.policy_maps[env_num][players_go], players_go, obs, hidden_states, action_masks),
-                                   "outside_action_error.pt")
-                        print("successfully dumped outer info")
+                                   "action_error_" + str(int(np.random.randint(0,10000))) + ".pt")
+                        print("successfully dumped action error info.")
 
                     self.current_hidden_states[env_num][players_go] = hidden_states
 
@@ -100,7 +101,7 @@ class GamesAndPoliciesManager(object):
                     except:
                         torch.save((self.envs[env_num].game.players, self.envs[env_num].game.resource_bank,
                                     actions, action_masks, hidden_states, players_go, obs),
-                                   "step_error_info.pt")
+                                   "step_error_" + str(int(np.random.randint(0, 10000))) + ".pt")
                         print("Successfully dumped step error info.")
 
                     for player_id in [PlayerId.White, PlayerId.Blue, PlayerId.Red, PlayerId.Orange]:

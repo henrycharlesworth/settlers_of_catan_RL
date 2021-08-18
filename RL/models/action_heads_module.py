@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 from RL.distributions import Categorical, DiagGaussian
+from game.enums import ActionTypes
 
 DEFAULT_MLP_SIZE = 64
 
@@ -48,11 +49,19 @@ class MultiActionHeadsGeneralised(nn.Module):
                 head_mask = 1
                 for prev_head_ind, head_type_to_option_map in self.type_conditional_action_masks[i].items():
                     if actions is not None:
-                        head_mask *= masks[i][head_type_to_option_map[actions[prev_head_ind]].squeeze(),
+                        masks_to_mult = masks[i][head_type_to_option_map[actions[prev_head_ind]].squeeze(),
                                      np.arange(main_head_inputs.size(0)), :]
+                        if prev_head_ind == 4:
+                            action_type_mask = (actions[0] != ActionTypes.PlayDevelopmentCard).squeeze()
+                            masks_to_mult[action_type_mask, ...] = 1.0
+                        head_mask *= masks_to_mult
                     else:
-                        head_mask *= masks[i][head_type_to_option_map[action_outputs[prev_head_ind]].squeeze(),
+                        masks_to_mult = masks[i][head_type_to_option_map[action_outputs[prev_head_ind]].squeeze(),
                                      np.arange(main_head_inputs.size(0)), :]
+                        if prev_head_ind == 4:
+                            action_type_mask = (action_outputs[0] != ActionTypes.PlayDevelopmentCard).squeeze()
+                            masks_to_mult[action_type_mask, ...] = 1.0
+                        head_mask *= masks_to_mult
             else:
                 head_mask = masks[i]
 
@@ -65,12 +74,7 @@ class MultiActionHeadsGeneralised(nn.Module):
                     if head.type == "normal":
                         head_action = head_distribution.rsample()
                     else:
-
-                        try:
-                            head_action = head_distribution.sample()
-                        except:
-                            torch.save((head_distribution, main_head_inputs, head_mask, custom_inputs, i), "inside_head_error.pt")
-                            print("successfully dumped inner info")
+                        head_action = head_distribution.sample()
 
                 if head.type == "categorical":
                     one_hot_head_action = torch.zeros(main_input.size(0), head.output_dim, device=self.dummy_param.device)
@@ -90,13 +94,16 @@ class MultiActionHeadsGeneralised(nn.Module):
                 log_prob_mask = torch.ones(main_input.size(0), 1, dtype=torch.float32, device=self.dummy_param.device)
                 if self.log_prob_masks[i] is not None:
                     for prev_head_ind, head_type_mask in self.log_prob_masks[i].items():
-                        filter = head_log_probs_filtered[prev_head_ind] #allows us to ignore the mask from this head if its log prob has been filtered by an earlier head.
                         if actions is None:
                             acts_to_mask = action_outputs
                         else:
                             acts_to_mask = actions
                         head_prob_mask = head_type_mask[acts_to_mask[prev_head_ind].squeeze()].view(-1, 1)
-                        log_prob_mask *= ((1-filter) * head_prob_mask)
+                        if prev_head_ind == 4:
+                            action_type_mask = (acts_to_mask[0] != ActionTypes.PlayDevelopmentCard).squeeze()
+                            head_prob_mask[action_type_mask, ...] = 1.0
+                        log_prob_mask *= head_prob_mask
+
                     head_log_prob *= log_prob_mask
                 joint_action_log_prob += head_log_prob
                 head_log_probs_filtered.append((log_prob_mask==0).float().detach())
@@ -257,9 +264,8 @@ class RecurrentResourceActionHead(nn.Module):
         #now apply log_prob_mask from other heads
         log_prob_mask = 1
         for prev_head_ind, head_type_mask in log_prob_masks.items():
-            filter = filtered_heads[prev_head_ind]
             head_prob_mask = head_type_mask[prev_head_action_outs[prev_head_ind].squeeze()].view(-1, 1)
-            log_prob_mask *= ((1-filter) * head_prob_mask)
+            log_prob_mask *= head_prob_mask
         log_prob_sum *= log_prob_mask
         entropy_sum *= log_prob_mask
 

@@ -4,7 +4,7 @@ import numpy as np
 import random
 import torch
 import copy
-import signal
+import psutil
 
 from collections import deque
 
@@ -130,7 +130,7 @@ def main():
 
         update_num += 1
 
-    def fail_handler(signum, frame):
+    def fail_handler():
         print("Error or update exceeded specified timeout (something broke). Attempting to reinitialise everything and continue training!")
 
         global rollout_manager, evaluation_manager
@@ -149,19 +149,20 @@ def main():
 
         print("Environments reinitialised - continuing training.")
 
-    signal.signal(signal.SIGALRM, fail_handler)
 
     while update_num < num_updates:
-        if DEBUG:
+        try:
             run_update()
-        else:
-            try:
-                signal.alarm(args.update_timeout * 60)
-                run_update()
-                signal.alarm(0)
-            except:
-                fail_handler(None, None)
-                continue
+        except:
+            fail_handler()
+            continue
+
+        if psutil.virtual_memory().percent > 95.0:
+            #stupid memory leak - need to restart everything using a bash script as a workaround...
+            fail_handler()
+            torch.save((central_policy.state_dict(), earlier_policies, eval_logs, update_num, args),
+                       "RL/results/current.pt")
+            os.system('kill %d' % os.getpid())
 
 
 if __name__ == "__main__":

@@ -55,7 +55,9 @@ def main():
         central_policy_sd, earlier_policies, eval_logs, start_update, args = torch.load("RL/results/"+args.load_file_path)
         update_opponent_policies(earlier_policies, rollout_manager, args)
         central_policy.load_state_dict(central_policy_sd)
+        central_policy.to("cpu")
         rollout_manager.update_policy(central_policy.state_dict(), policy_id=0)
+        central_policy.to(device)
     else:
         earlier_policies = deque(maxlen=args.num_policies_to_store)
         central_policy.to("cpu")

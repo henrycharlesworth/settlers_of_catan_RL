@@ -19,7 +19,7 @@ def get_args():
         '--gae-lambda', type=float, default=0.95
     )
     parser.add_argument(
-        '--entropy-coef', type=float, default=0.004
+        '--entropy-coef', type=float, default=0.0
     )
     parser.add_argument(
         '--value-loss-coef', type=float, default=0.5
@@ -52,7 +52,7 @@ def get_args():
         '--clip-param', type=float, default=0.2
     )
     parser.add_argument(
-        '--total-env-steps', type=int, default=500e6
+        '--total-env-steps', type=int, default=5e9
     )
     parser.add_argument(
         '--recompute-returns', action='store_true', default=False

@@ -748,7 +748,7 @@ class Display(object):
                 self.curr_hidden_states[player_id] =  (torch.zeros(1, self.dummy_policy.lstm_size, device=self.dummy_policy.dummy_param.device),
                                                        torch.zeros(1, self.dummy_policy.lstm_size, device=self.dummy_policy.dummy_param.device))
 
-    def step_AI(self):
+    def step_AI(self, deterministic=True):
         players_go = self.get_players_turn()
         if isinstance(self.policies[players_go], str):
             messagebox.showinfo('Error', "It is currently a human player's turn.")
@@ -760,7 +760,7 @@ class Display(object):
 
             _, actions, _, hidden_states = self.policies[players_go].act(
                 curr_obs, curr_hidden_state, torch.ones(1, 1, device=self.dummy_policy.dummy_param.device),
-                action_masks
+                action_masks, deterministic=deterministic
             )
             self.curr_hidden_states[players_go] = hidden_states
 
@@ -793,18 +793,6 @@ class Display(object):
 
         if self.policies is not None:
             self.initialise_AI()
-
-        # if test:
-        #     while run:
-        #         pygame.time.delay(100)
-        #         done = self.step_AI()
-        #         if done:
-        #             break
-        #
-        #         pygame.display.update()
-        #         self.game_log_sftext.post_update()
-        #         pygame.event.pump()
-        #     return
 
         while run:
             pygame.time.delay(150)

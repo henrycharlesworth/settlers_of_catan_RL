@@ -43,28 +43,29 @@ class EvaluationManager(object):
         policy_decisions = 0
 
         while done == False:
-            players_go = self._get_players_turn(self.env)
+            with torch.no_grad():
+                players_go = self._get_players_turn(self.env)
 
-            obs = self.current_observations[players_go]
-            hidden_states = self.current_hidden_states[players_go]
-            action_masks = self.policies[0].act_masks_to_torch(self.env.get_action_masks())
-            _, actions, _, hidden_states = self.policies[self.policy_map[players_go]].act(
-                obs, hidden_states, terminal_mask, action_masks, deterministic=False
-            )
+                obs = self.current_observations[players_go]
+                hidden_states = self.current_hidden_states[players_go]
+                action_masks = self.policies[0].act_masks_to_torch(self.env.get_action_masks())
+                _, actions, _, hidden_states = self.policies[self.policy_map[players_go]].act(
+                    obs, hidden_states, terminal_mask, action_masks, deterministic=False
+                )
 
-            if self.policy_map[players_go] == 0:
-                policy_decisions += 1
+                if self.policy_map[players_go] == 0:
+                    policy_decisions += 1
 
-            self.current_hidden_states[players_go] = hidden_states
+                self.current_hidden_states[players_go] = hidden_states
 
-            obs, reward, done, _ = self.env.step(self.policies[0].torch_act_to_np(actions))
-            obs = self.policies[0].obs_to_torch(obs)
+                obs, reward, done, _ = self.env.step(self.policies[0].torch_act_to_np(actions))
+                obs = self.policies[0].obs_to_torch(obs)
 
-            n_players_go = self._get_players_turn(self.env)
+                n_players_go = self._get_players_turn(self.env)
 
-            self.current_observations[n_players_go] = obs
+                self.current_observations[n_players_go] = obs
 
-            total_game_steps += 1
+                total_game_steps += 1
 
         winner = self.order.index(self.env.winner.id)
 

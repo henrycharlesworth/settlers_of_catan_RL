@@ -48,7 +48,8 @@ class SettlersAgentPolicy(nn.Module):
         value = self.value_network(lstm_output)
         return value, lstm_output, hidden_states
 
-    def act(self, obs_dict, hidden_states, nonterminal_masks, action_masks, deterministic=False):
+    def act(self, obs_dict, hidden_states, nonterminal_masks, action_masks, deterministic=False,
+            return_entropy=False):
         custom_inputs = {
             "current_resources": obs_dict["current_resources"],
             "proposed_trade": obs_dict["proposed_trade"]
@@ -56,12 +57,15 @@ class SettlersAgentPolicy(nn.Module):
 
         value, lstm_output, hidden_states = self.base(obs_dict, hidden_states, nonterminal_masks)
 
-        actions, action_log_probs, _ = self.action_head_module(
+        actions, action_log_probs, entropy = self.action_head_module(
             main_input=lstm_output, masks=action_masks, custom_inputs=custom_inputs,
             deterministic=deterministic
         )
 
-        return value, actions, action_log_probs, hidden_states
+        if return_entropy:
+            return value, actions, action_log_probs, hidden_states, entropy
+        else:
+            return value, actions, action_log_probs, hidden_states
 
     def evaluate_actions(self, obs_dict, hidden_states, nonterminal_masks, actions, action_masks):
         custom_inputs = {

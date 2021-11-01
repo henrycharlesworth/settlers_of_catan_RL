@@ -86,7 +86,6 @@ def main():
     steps_per_update = int(args.num_steps * args.num_processes * args.num_envs_per_process)
 
     def run_update():
-        # torch.cuda.empty_cache()
         global update_num
 
         if args.use_linear_lr_decay:
@@ -133,6 +132,9 @@ def main():
 
         update_num += 1
 
+        torch.save((central_policy.state_dict(), earlier_policies, eval_logs, update_num, args),
+                   "RL/results/current.pt")
+
     def fail_handler():
         print("Error or update exceeded specified timeout (something broke). Attempting to reinitialise everything and continue training!")
 
@@ -157,14 +159,11 @@ def main():
         try:
             run_update()
         except:
-            fail_handler()
-            continue
+            break
 
         if psutil.virtual_memory().percent > 95.0:
             #stupid memory leak - need to restart everything using a bash script as a workaround...
             fail_handler()
-            torch.save((central_policy.state_dict(), earlier_policies, eval_logs, update_num, args),
-                       "RL/results/current.pt")
             os.system('kill %d' % os.getpid())
 
 

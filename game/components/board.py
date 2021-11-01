@@ -26,11 +26,11 @@ class Board(object):
         self.NUMBER_PLACEMENT_INDS = [0, 3, 7, 12, 16, 17, 18, 15, 11, 6, 2, 1, 4, 8, 13, 14, 10, 5, 9]
         self.TERRAIN_TO_PLACE = [Terrain.Desert] + [Terrain.Hills] * 3 + [Terrain.Fields] * 4 + \
                                 [Terrain.Forest] * 4 + [Terrain.Mountains] * 3 + [Terrain.Pastures] * 4
-        self.HARBOURS_TO_PLACE = [Harbour(Resource.Ore, exchange_value=2), Harbour(Resource.Sheep, exchange_value=2),
-                                  Harbour(Resource.Wheat, exchange_value=2), Harbour(Resource.Wood, exchange_value=2),
-                                  Harbour(Resource.Brick, exchange_value=2), Harbour(None, exchange_value=3),
-                                  Harbour(None, exchange_value=3), Harbour(None, exchange_value=3),
-                                  Harbour(None, exchange_value=3)]
+        self.HARBOURS_TO_PLACE = [Harbour(Resource.Ore, exchange_value=2, id=0), Harbour(Resource.Sheep, exchange_value=2, id=1),
+                                  Harbour(Resource.Wheat, exchange_value=2, id=2), Harbour(Resource.Wood, exchange_value=2, id=3),
+                                  Harbour(Resource.Brick, exchange_value=2, id=4), Harbour(None, exchange_value=3, id=5),
+                                  Harbour(None, exchange_value=3, id=6), Harbour(None, exchange_value=3, id=7),
+                                  Harbour(None, exchange_value=3, id=8)]
 
         self.randomise_number_placement = randomise_number_placement
         self.fixed_terrain_placements = fixed_terrain_placements
@@ -82,6 +82,8 @@ class Board(object):
 
         self.harbours = copy.copy(self.HARBOURS_TO_PLACE)
         np.random.shuffle(self.harbours)
+        for harbour in self.harbours:
+            harbour.corners = []
 
         self.tiles = tuple([Tile(terrain_order[i], -1, i) for i in range(19)])
         self.value_to_tiles = {}

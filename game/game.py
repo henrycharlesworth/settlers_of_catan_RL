@@ -6,7 +6,8 @@ from itertools import chain
 
 from game.components.board import Board
 from game.components.player import Player
-from game.enums import PlayerId, Resource, BuildingType, DevelopmentCard, ActionTypes
+from game.components.buildings import Building
+from game.enums import PlayerId, Resource, BuildingType, DevelopmentCard, ActionTypes, HARBOUR_CORNER_AND_EDGES
 from game.utils import DFS
 
 from ui.display import Display
@@ -942,3 +943,243 @@ class Game(object):
                                                                                                player_total_res)
                         self.players[o_player].opponent_min_res[player_label][o_res] = np.clip(curr_min_est, 0,
                                                                                                player_total_res)
+
+
+    def save_current_state(self):
+
+        state = {}
+
+        state["tile_info"] = []
+        for tile in self.board.tiles:
+            state["tile_info"].append(
+                (tile.terrain, tile.resource, tile.value, tile.likelihood, tile.contains_robber)
+            )
+
+        state["edge_occupancy"] = [edge.road for edge in self.board.edges]
+
+        state["corner_buildings"] = []
+        for corner in self.board.corners:
+            if corner.building is not None:
+                state["corner_buildings"].append((corner.building.type, corner.building.owner))
+            else:
+                state["corner_buildings"].append((None, None))
+
+        state["harbour_order"] = [harbour.id for harbour in self.board.harbours]
+
+        state["players"] = {}
+        for player_key, player in self.players.items():
+            state["players"][player_key] = {"id": player.id,
+                 "player_order": copy.copy(player.player_order),
+                 "player_lookup": copy.copy(player.player_lookup),
+                 "inverse_player_lookup": copy.copy(player.inverse_player_lookup),
+                 "buildings": copy.copy(player.buildings),
+                 "roads": copy.copy(player.roads),
+                 "resources": copy.copy(player.resources),
+                 "visible_resources": copy.copy(player.visible_resources),
+                 "opponent_max_res": copy.copy(player.opponent_max_res),
+                 "opponent_min_res": copy.copy(player.opponent_min_res),
+                 "harbour_info": [(key, val.id) for key, val in player.harbours.items()],
+                 "longest_road": player.longest_road,
+                 "hidden_cards": copy.copy(player.hidden_cards),
+                 "visible_cards": copy.copy(player.visible_cards),
+                 "victory_points": player.victory_points
+            }
+
+        state["players_go"] = self.players_go
+        state["player_order"] = copy.deepcopy(self.player_order)
+        state["player_order_id"] = self.player_order_id
+
+        state["resource_bank"] = copy.copy(self.resource_bank)
+        state["building_bank"] = copy.copy(self.building_bank)
+        state["road_bank"] = copy.copy(self.road_bank)
+        state["development_cards"] = copy.deepcopy(self.development_cards)
+        state["development_card_pile"] = copy.deepcopy(self.development_cards_pile)
+
+        state["largest_army"] = self.largest_army
+        state["longest_road"] = self.longest_road
+
+        state["initial_placement_phase"] = self.initial_placement_phase
+        state["initial_settlements_placed"] = copy.copy(self.initial_settlements_placed)
+        state["initial_roads_placed"] = copy.copy(self.initial_roads_placed)
+        state["initial_second_settlement_corners"] = copy.copy(self.initial_second_settlement_corners)
+
+        state["dice_rolled_this_turn"] = self.dice_rolled_this_turn
+        state["played_development_card_this_turn"] = self.played_development_card_this_turn
+        state["must_use_development_card_ability"] = self.must_use_development_card_ability
+        state["must_respond_to_trade"] = self.must_respond_to_trade
+        state["proposed_trade"] = copy.deepcopy(self.proposed_trade)
+        state["road_building_active"] = self.road_building_active
+        state["can_move_robber"] = self.can_move_robber
+        state["just_moved_robber"] = self.just_moved_robber
+        state["trades_proposed_this_turn"] = self.trades_proposed_this_turn
+        state["actions_this_turn"] = self.actions_this_turn
+        state["turn"] = self.turn
+        state["development_cards_bought_this_turn"] = self.development_cards_bought_this_turn
+        state["current_longest_path"] = copy.copy(self.current_longest_path)
+        state["current_army_size"] = copy.copy(self.current_army_size)
+        state["die_1"] = self.die_1
+        state["die_2"] = self.die_2
+
+        return state
+
+    def restore_state(self, state):
+
+        state = copy.deepcopy(state) #prevent state being changed
+
+        for i, info in enumerate(state["tile_info"]):
+            terrain, resource, value, likelihood, contains_robber = info[0], info[1], info[2], info[3], info[4]
+            self.board.tiles[i].terrain = terrain
+            self.board.tiles[i].resource = resource
+            self.board.tiles[i].value = value
+            self.board.tiles[i].likelihood = likelihood
+            self.board.tiles[i].contains_robber = contains_robber
+            if contains_robber:
+                self.board.robber_tile = self.board.tiles[i]
+
+        for i, road in enumerate(state["edge_occupancy"]):
+            self.board.edges[i].road = road
+
+        for i, entry in enumerate(state["corner_buildings"]):
+            building, player = entry[0], entry[1]
+            if building is not None:
+                self.board.corners[i].building = Building(building, player, self.board.corners[i])
+            else:
+                self.board.corners[i].building = None
+
+        """have to reinitialise harbours - annoying"""
+        self.board.harbours = copy.copy([self.board.HARBOURS_TO_PLACE[i] for i in state["harbour_order"]])
+
+        for corner in self.board.corners:
+            corner.harbour = None
+        for edge in self.board.edges:
+            edge.harbour = None
+        for i, harbour in enumerate(self.board.harbours):
+            h_info = HARBOUR_CORNER_AND_EDGES[i]
+            tile = self.board.tiles[h_info[0]]
+            corner_1 = tile.corners[h_info[1]]
+            corner_2 = tile.corners[h_info[2]]
+            edge = tile.edges[h_info[3]]
+
+            corner_1.harbour = harbour
+            corner_2.harbour = harbour
+            edge.harbour = harbour
+
+            harbour.corners.append(corner_1)
+            harbour.corners.append(corner_2)
+            harbour.edge = edge
+
+
+        for key, player_state in state["players"].items():
+            self.players[key].id = player_state["id"]
+            self.players[key].player_order = player_state["player_order"]
+            self.players[key].player_lookup = player_state["player_lookup"]
+            self.players[key].inverse_player_lookup = player_state["inverse_player_lookup"]
+            self.players[key].buildings = player_state["buildings"]
+            self.players[key].roads = player_state["roads"]
+            self.players[key].resources = player_state["resources"]
+            self.players[key].visible_resources = player_state["visible_resources"]
+            self.players[key].opponent_max_res = player_state["opponent_max_res"]
+            self.players[key].opponent_min_res = player_state["opponent_min_res"]
+            self.players[key].longest_road = player_state["longest_road"]
+            self.players[key].hidden_cards = player_state["hidden_cards"]
+            self.players[key].visible_cards = player_state["visible_cards"]
+            self.players[key].victory_points = player_state["victory_points"]
+            for info in player_state["harbour_info"]:
+                key_res = info[0]; id = info[1]
+                for harbour in self.board.harbours:
+                    if id == harbour.id:
+                        self.players[key].harbours[key_res] = harbour
+
+        self.players_go = state["players_go"]
+        self.player_order = state["player_order"]
+        self.player_order_id = state["player_order_id"]
+
+        self.resource_bank = state["resource_bank"]
+        self.building_bank = state["building_bank"]
+        self.road_bank = state["road_bank"]
+        self.development_cards = state["development_cards"]
+        self.development_cards_pile = state["development_card_pile"]
+
+        self.largest_army = state["largest_army"]
+        self.longest_road = state["longest_road"]
+
+        self.initial_placement_phase = state["initial_placement_phase"]
+        self.initial_settlements_placed = state["initial_settlements_placed"]
+        self.initial_roads_placed = state["initial_roads_placed"]
+        self.initial_second_settlement_corners = state["initial_second_settlement_corners"]
+
+        self.dice_rolled_this_turn = state["dice_rolled_this_turn"]
+        self.played_development_card_this_turn = state["played_development_card_this_turn"]
+        self.must_use_development_card_ability = state["must_use_development_card_ability"]
+        self.must_respond_to_trade = state["must_respond_to_trade"]
+        self.proposed_trade = state["proposed_trade"]
+        self.road_building_active = state["road_building_active"]
+        self.can_move_robber = state["can_move_robber"]
+        self.just_moved_robber = state["just_moved_robber"]
+        self.trades_proposed_this_turn = state["trades_proposed_this_turn"]
+        self.actions_this_turn = state["actions_this_turn"]
+        self.turn = state["turn"]
+        self.development_cards_bought_this_turn = state["development_cards_bought_this_turn"]
+        self.current_longest_path = state["current_longest_path"]
+        self.current_army_size = state["current_army_size"]
+        self.die_1 = state["die_1"]
+        self.die_2 = state["die_2"]
+
+
+    # def setup_dummy_test_example(self, controlling_player_id):
+    #     for player_id in self.players.keys():
+    #         self.players[player_id].hidden_cards.append(self.development_cards_pile.pop())
+    #         self.players[player_id].hidden_cards.append(self.development_cards_pile.pop())
+    #
+    #         self.players[player_id].resources = {
+    #             Resource.Brick: np.random.randint(2, 10),
+    #             Resource.Wood: np.random.randint(2, 10),
+    #             Resource.Wheat: np.random.randint(2, 10),
+    #             Resource.Sheep: np.random.randint(2, 10),
+    #             Resource.Ore: np.random.randint(2, 10)
+    #         }
+    #
+    #     for player_id in self.players.keys():
+    #         if player_id != controlling_player_id:
+    #             label = self.players[controlling_player_id].player_lookup[player_id]
+    #             self.players[controlling_player_id].opponent_min_res[label] = copy.copy(self.players[player_id].resources)
+    #             self.players[controlling_player_id].opponent_max_res[label] = copy.copy(self.players[player_id].resources)
+    #             for res in [Resource.Brick, Resource.Wood, Resource.Wheat, Resource.Sheep, Resource.Ore]:
+    #                 num = np.random.randint(0, 2)
+    #                 self.players[controlling_player_id].opponent_min_res[label][res] -= num
+    #                 for res2 in [Resource.Brick, Resource.Wood, Resource.Wheat, Resource.Sheep, Resource.Ore]:
+    #                     self.players[controlling_player_id].opponent_max_res[label][res2] += num
+
+    def randomise_uncertainty(self, controlling_player_id):
+        """inject random uncertainty given controlling player's current information."""
+        """dev cards"""
+        all_possible_development_cards = list(copy.copy(self.development_cards_pile))
+        for player_id in self.players.keys():
+            if player_id != controlling_player_id:
+                all_possible_development_cards += list(copy.copy(self.players[player_id].hidden_cards))
+        np.random.shuffle(all_possible_development_cards)
+        all_possible_development_cards = deque(all_possible_development_cards)
+
+        for player_id in self.players.keys():
+            if player_id != controlling_player_id:
+                num_hidden_cards = len(self.players[player_id].hidden_cards)
+                self.players[player_id].hidden_cards = [all_possible_development_cards.pop() for _ in range(num_hidden_cards)]
+        self.development_cards_pile = all_possible_development_cards
+
+        """resources"""
+        for player_id in self.players.keys():
+            if player_id != controlling_player_id:
+                total_resources = sum(self.players[player_id].resources.values())
+                max_res = copy.copy(self.players[controlling_player_id].opponent_max_res[self.players[controlling_player_id].player_lookup[player_id]])
+                min_res = copy.copy(self.players[controlling_player_id].opponent_min_res[self.players[controlling_player_id].player_lookup[player_id]])
+                difference = {}
+                for res in [Resource.Brick, Resource.Wood, Resource.Wheat, Resource.Sheep, Resource.Ore]:
+                    difference[res] = max_res[res] - min_res[res]
+                avail_res = []
+                for key, val in difference.items():
+                    avail_res += [key] * val
+                np.random.shuffle(avail_res)
+                while sum(min_res.values()) < total_resources:
+                    res = avail_res.pop()
+                    min_res[res] += 1
+                self.players[player_id].resources = min_res

@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 
 from game.game import Game
 from game.enums import ActionTypes, DevelopmentCard, Resource, BuildingType, PlayerId
@@ -666,3 +667,15 @@ class EnvWrapper(object):
             )
 
         return main_inputs, played_cards, hidden_cards
+
+    def save_state(self):
+        return copy.deepcopy({
+            "state": self.game.save_current_state(),
+            "vps": copy.deepcopy(self.curr_vps),
+            "winner": self.winner
+        })
+
+    def restore_state(self, state):
+        self.game.restore_state(state["state"])
+        self.curr_vps = state["vps"]
+        self.winner = state["winner"]

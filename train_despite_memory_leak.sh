@@ -5,6 +5,7 @@
 python RL/robust_train.py --load-from-checkpoint --load-file-path current_best.pt
 
 while true; do
+pkill -9 python
 python RL/robust_train.py --load-from-checkpoint --load-file-path current.pt
 done
 

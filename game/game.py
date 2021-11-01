@@ -393,7 +393,7 @@ class Game(object):
             target_resource = action["desired_resource"]
             trading_resource = action["trading_resource"]
 
-            if action.get("harbour", -1) is not -1:
+            if action.get("harbour", -1) != -1:
                 res = action["harbour"]
                 harbour = player.harbours.get(res, -1)
                 if isinstance(harbour, int) and harbour == -1:

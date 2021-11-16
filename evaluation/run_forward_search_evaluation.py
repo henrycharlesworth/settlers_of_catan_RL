@@ -68,5 +68,5 @@ if __name__ == "__main__":
         ))
 
         joblib.dump((
-            winners_all, num_game_steps_all, victory_points_all, forward_policy_decisions_all, action_types_all
+            winners_all, num_game_steps_all, victory_points_all, forward_policy_decisions_all, sorted(dict(action_types_all).items())
         ), "forward_policy_evaluation.pkl")

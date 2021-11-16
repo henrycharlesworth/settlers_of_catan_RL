@@ -1026,6 +1026,8 @@ class Game(object):
 
         state = copy.deepcopy(state) #prevent state being changed
 
+        self.board.value_to_tiles = {}
+
         for i, info in enumerate(state["tile_info"]):
             terrain, resource, value, likelihood, contains_robber = info[0], info[1], info[2], info[3], info[4]
             self.board.tiles[i].terrain = terrain
@@ -1033,6 +1035,12 @@ class Game(object):
             self.board.tiles[i].value = value
             self.board.tiles[i].likelihood = likelihood
             self.board.tiles[i].contains_robber = contains_robber
+
+            if value != 7:
+                if value in self.board.value_to_tiles:
+                    self.board.value_to_tiles[value].append(self.board.tiles[i])
+                else:
+                    self.board.value_to_tiles[value] = [self.board.tiles[i]]
             if contains_robber:
                 self.board.robber_tile = self.board.tiles[i]
 

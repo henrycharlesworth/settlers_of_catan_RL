@@ -22,7 +22,8 @@ class MultiActionHeadsGeneralised(nn.Module):
         for head in action_heads:
             self.action_heads.append(head)
 
-    def forward(self, main_input, masks, actions=None, custom_inputs=None, deterministic=False):
+    def forward(self, main_input, masks, actions=None, custom_inputs=None, deterministic=False,
+                condition_on_action_type=None):
         head_outputs = []
         action_outputs = []
         head_log_probs_filtered = []
@@ -30,7 +31,19 @@ class MultiActionHeadsGeneralised(nn.Module):
         joint_action_log_prob = 0
         entropy = 0
 
+        if condition_on_action_type is not None:
+            type_output = torch.zeros(1, 12, dtype=torch.float32, device=self.dummy_param.device)
+            type_output[0, condition_on_action_type] = 1.0
+            first_output = torch.tensor([[condition_on_action_type]], dtype=torch.long, device=self.dummy_param.device)
+            first_filter = torch.zeros(1, 1, dtype=torch.float32, device=self.dummy_param.device)
+            head_outputs.append(type_output)
+            action_outputs.append(first_output)
+            head_log_probs_filtered.append(first_filter)
+
         for i, head in enumerate(self.action_heads):
+            if i==0 and condition_on_action_type is not None:
+                continue
+
             main_head_inputs = []
             for entry in self.autoregressive_map[i]:
                 if entry[0] == -1:

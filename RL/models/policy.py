@@ -15,6 +15,8 @@ class SettlersAgentPolicy(nn.Module):
         self.lstm_layers = lstm_layers
         self.lstm_size = lstm_size
 
+        self.policy_type = "neural_network"
+
         self.standard_obs_keys = ["proposed_trade", "current_resources", "current_player_main", "next_player_main",
                                   "next_next_player_main", "next_next_next_player_main"]
         self.list_int_obs_keys = ["current_player_played_dev", "current_player_hidden_dev",
@@ -49,7 +51,7 @@ class SettlersAgentPolicy(nn.Module):
         return value, lstm_output, hidden_states
 
     def act(self, obs_dict, hidden_states, nonterminal_masks, action_masks, deterministic=False,
-            return_entropy=False):
+            return_entropy=False, condition_on_action_type=None):
         custom_inputs = {
             "current_resources": obs_dict["current_resources"],
             "proposed_trade": obs_dict["proposed_trade"]
@@ -59,7 +61,7 @@ class SettlersAgentPolicy(nn.Module):
 
         actions, action_log_probs, entropy = self.action_head_module(
             main_input=lstm_output, masks=action_masks, custom_inputs=custom_inputs,
-            deterministic=deterministic
+            deterministic=deterministic, condition_on_action_type=condition_on_action_type
         )
 
         if return_entropy:

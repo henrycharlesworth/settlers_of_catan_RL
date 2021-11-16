@@ -17,7 +17,8 @@ from game.enums import PlayerId
 class ForwardSearchPolicy(object):
     def __init__(self, base_policy_state_dict, sample_actions_fn, max_init_actions=10, max_depth=20,
                  max_thinking_time=10, gamma=0.999, num_subprocesses=11, subprocess_start_method=None,
-                 player_id=None, zero_opponent_hidden_states=False, consider_all_moves_for_opening_placement=False):
+                 player_id=None, zero_opponent_hidden_states=False, consider_all_moves_for_opening_placement=False,
+                 dont_propose_devcards=False, dont_propose_trades=False):
         self.base_policy = build_agent_model(device="cpu")
         self.base_policy.load_state_dict(base_policy_state_dict)
         self.player_id = player_id
@@ -26,6 +27,8 @@ class ForwardSearchPolicy(object):
         self.policy_type = "forward_search"
 
         self.consider_all_moves_for_opening_placement = consider_all_moves_for_opening_placement
+        self.dont_propose_devcards = dont_propose_devcards
+        self.dont_propose_trades = dont_propose_trades
         self.zero_opponent_hidden_states = zero_opponent_hidden_states
         self.sample_actions_fn = sample_actions_fn
         self.max_init_actions = max_init_actions
@@ -64,7 +67,8 @@ class ForwardSearchPolicy(object):
             curr_obs, curr_hidden_states[self.player_id], curr_action_masks,
             self.base_policy, self.max_init_actions,
             consider_all_initial_settlements = self.consider_all_moves_for_opening_placement,
-            initial_settlement_phase=initial_settlement
+            initial_settlement_phase=initial_settlement, dont_propose_devcards=self.dont_propose_devcards,
+            dont_propose_trades=self.dont_propose_trades
         )
 
         if self.zero_opponent_hidden_states:
@@ -98,8 +102,8 @@ class ForwardSearchPolicy(object):
         start_time = time.time()
         elapsed_time = 0.0
 
-        while elapsed_time < thinking_time:
-        # while self.num_simulations_finished < 20: #deterministic testing
+        # while elapsed_time < thinking_time:
+        while self.num_simulations_finished < 100: #deterministic testing
             while len(self.workers_ready_to_simulate) > 0:
                 worker_id = self.workers_ready_to_simulate.pop()
                 action_id = self._select_action()
@@ -110,7 +114,7 @@ class ForwardSearchPolicy(object):
 
             while not self.shared_queue.empty():
                 pred_val, ac_id, worker_id = self.shared_queue.get()
-                print("action: {}. pred_val: {}".format(ac_id, pred_val))
+                # print("action: {}. pred_val: {}".format(ac_id, pred_val))
                 self._update_stats(pred_val, ac_id)
                 self.workers_ready_to_simulate.append(worker_id)
 

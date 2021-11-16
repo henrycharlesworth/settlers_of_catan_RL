@@ -29,17 +29,23 @@ type_to_ind = {
 
 def update_action_masks(action, action_masks):
     if action[0] == 0:
-        action_masks[1][0][action[1]] = 0
+        if sum(action_masks[1][0]) > 1:
+            action_masks[1][0][action[1]] = 0
     elif action[0] == 1:
-        action_masks[2][action[2]] = 0
+        if sum(action_masks[2]) > 1:
+            action_masks[2][action[2]] = 0
     elif action[0] == 2:
-        action_masks[1][1][action[1]] = 0
+        if sum(action_masks[1][1]) > 1:
+            action_masks[1][1][action[1]] = 0
     elif action[0] == 4:
-        action_masks[4][action[4]] = 0
+        if sum(action_masks[4]) > 1:
+            action_masks[4][action[4]] = 0
     elif action[0] == 8:
-        action_masks[3][action[3]] = 0
+        if sum(action_masks[3]) > 0:
+            action_masks[3][action[3]] = 0
     elif action[0] == 11:
-        action_masks[6][1][action[6]] = 0
+        if sum(action_masks[6][1]) > 0:
+            action_masks[6][1][action[6]] = 0
     return action_masks
 
 def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,

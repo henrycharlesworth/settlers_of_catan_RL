@@ -37,7 +37,9 @@ if __name__ == "__main__":
                                                 args.max_depth, args.max_thinking_time, gamma=args.gamma,
                                                 num_subprocesses=args.num_subprocesses,
                                                 zero_opponent_hidden_states=args.zero_opponent_hidden_states,
-                                                consider_all_moves_for_opening_placement=args.consider_all_moves_for_opening_placements)
+                                                consider_all_moves_for_opening_placement=args.consider_all_moves_for_opening_placements,
+                                                dont_propose_trades=args.dont_propose_trades,
+                                                dont_propose_devcards=args.dont_propose_devcards)
     policies = [forward_search_policy, build_agent_model(), build_agent_model(), build_agent_model()]
     for i in range(1, 4):
         policies[i].load_state_dict(policy_state_dict)

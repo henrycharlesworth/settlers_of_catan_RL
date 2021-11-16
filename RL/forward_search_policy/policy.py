@@ -102,8 +102,8 @@ class ForwardSearchPolicy(object):
         start_time = time.time()
         elapsed_time = 0.0
 
-        # while elapsed_time < thinking_time:
-        while self.num_simulations_finished < 100: #deterministic testing
+        while elapsed_time < thinking_time:
+        # while self.num_simulations_finished < 100: #deterministic testing
             while len(self.workers_ready_to_simulate) > 0:
                 worker_id = self.workers_ready_to_simulate.pop()
                 action_id = self._select_action()

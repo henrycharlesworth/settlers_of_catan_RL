@@ -258,6 +258,7 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
     num_priorities = len(action_type_priorities.keys())
 
     for i in range(num_actions_to_sample):
+        ac_type = None
         for j in range(num_priorities):
             avail_types = [ac_type for ac_type in action_type_priorities[j+1] if actions_available_type.get(ac_type, 0) > 0]
             if trades_proposed >= max_prop_trade_actions and "prop_trade" in avail_types:
@@ -266,6 +267,8 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
                 ac_type = random.choice(avail_types)
                 actions_available_type[ac_type] -= 1
                 break
+        if ac_type is None:
+            break #something gone wrong - but just return what we have.
 
         _, policy_action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
                                                   deterministic=False, condition_on_action_type=type_to_ind[ac_type])

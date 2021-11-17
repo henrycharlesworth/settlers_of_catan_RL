@@ -651,6 +651,7 @@ class Game(object):
                         self.resource_bank[resource] -= 1
                         player.resources[resource] += 1
                         player.visible_resources[resource] += 1
+                        self.update_player_resource_estimates({resource: 1}, player.id)
                 card_type_text = "Year of Plenty card, collecting {} and {}.".format(self.resource_text[action["resource_1"]],
                                                                                      self.resource_text[action["resource_2"]])
             if return_message:
@@ -681,8 +682,13 @@ class Game(object):
             player.visible_resources[trade_resource] = max(player.visible_resources[trade_resource] - action["exchange_rate"], 0)
             self.resource_bank[trade_resource] += action["exchange_rate"]
             self.resource_bank[desired_resource] -= 1
+            res_dict = {desired_resource: 1}
+            if desired_resource == trade_resource:
+                res_dict[desired_resource] -= action["exchange_rate"]
+            else:
+                res_dict[trade_resource] = -action["exchange_rate"]
             self.update_player_resource_estimates(
-                {desired_resource: 1, trade_resource: -action["exchange_rate"]}, player.id
+                res_dict, player.id
             )
             if return_message:
                 message = {
@@ -1175,29 +1181,62 @@ class Game(object):
         self.development_cards_pile = all_possible_development_cards
 
         """resources"""
+        total_resources_before = {}
         for player_id in self.players.keys():
-            if player_id != controlling_player_id:
-                total_resources = sum(self.players[player_id].resources.values())
-                max_res = copy.copy(self.players[controlling_player_id].opponent_max_res[self.players[controlling_player_id].player_lookup[player_id]])
-                min_res = copy.copy(self.players[controlling_player_id].opponent_min_res[self.players[controlling_player_id].player_lookup[player_id]])
-                difference = {}
-                for res in [Resource.Brick, Resource.Wood, Resource.Wheat, Resource.Sheep, Resource.Ore]:
-                    difference[res] = max_res[res] - min_res[res]
-                avail_res = []
-                for key, val in difference.items():
-                    avail_res += [key] * val
-                np.random.shuffle(avail_res)
-                while sum(min_res.values()) < total_resources:
-                    if len(avail_res) > 0:
-                        res = avail_res.pop()
-                        min_res[res] += 1
-                    else:
-                        continue
-                self.players[player_id].resources = min_res
+            total_resources_before[player_id] = sum(self.players[player_id].resources.values())
+
+        res_accounted_for = defaultdict(lambda: 0)
+        res_unaccounted_for = {}
+        for res in [Resource.Sheep, Resource.Brick, Resource.Ore, Resource.Wheat, Resource.Wood]:
+            res_accounted_for[res] += self.resource_bank[res]
+            for player_id in self.players.keys():
+                if player_id != controlling_player_id:
+                    player_definite_res = self.players[controlling_player_id].opponent_min_res[self.players[controlling_player_id].player_lookup[player_id]][res]
+                    res_accounted_for[res] += player_definite_res
+                    self.players[player_id].resources[res] = player_definite_res
+                else:
+                    res_accounted_for[res] += self.players[player_id].resources[res]
+
+        for res in [Resource.Sheep, Resource.Brick, Resource.Ore, Resource.Wheat, Resource.Wood]:
+            res_unaccounted_for[res] = 19 - res_accounted_for[res]
+
+        consistent_distribution_reached = False
+        proposed_res = {}
+        while consistent_distribution_reached == False:
+            proposed_res = {player_id: copy.deepcopy(self.players[player_id].resources) for player_id in self.players.keys()}
+            res_list = []
+            for key, val in res_unaccounted_for.items():
+                res_list += [key] * val
+            random.shuffle(res_list)
+
+            while len(res_list) > 0:
+                res_to_distribute = res_list.pop()
+                player_keys = copy.copy(list(self.players.keys()))
+                random.shuffle(player_keys)
+                for player_id in player_keys:
+                    if player_id != controlling_player_id:
+                        total_resources = sum(proposed_res[player_id].values())
+                        if total_resources < total_resources_before[player_id]:
+                            max_res = self.players[controlling_player_id].opponent_max_res[self.players[controlling_player_id].player_lookup[player_id]][res_to_distribute]
+                            if max_res > proposed_res[player_id][res_to_distribute]:
+                                proposed_res[player_id][res_to_distribute] += 1
+                                break
+            consistent_res = 0
+            for res in [Resource.Sheep, Resource.Brick, Resource.Ore, Resource.Wheat, Resource.Wood]:
+                in_hand = 0
+                for player_id in self.players.keys():
+                    in_hand += proposed_res[player_id][res]
+                if in_hand + self.resource_bank[res] == 19:
+                    consistent_res += 1
+            if consistent_res == 5:
+                consistent_distribution_reached = True
+
+        for player_id in self.players.keys():
+            self.players[player_id].resources = copy.copy(proposed_res[player_id])
 
         """check sum of resources in players and bank adds up correctly"""
         for res in [Resource.Sheep, Resource.Brick, Resource.Ore, Resource.Wheat, Resource.Wood]:
             in_hand = 0
             for player_id in self.players.keys():
                 in_hand += self.players[player_id].resources[res]
-            self.resource_bank[res] = 19 - in_hand
+            assert in_hand + self.resource_bank[res] == 19

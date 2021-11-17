@@ -104,6 +104,7 @@ class ForwardSearchPolicy(object):
 
         while elapsed_time < thinking_time:
         # while self.num_simulations_finished < 100: #deterministic testing
+            while_loop_count = 0
             while len(self.workers_ready_to_simulate) > 0:
                 worker_id = self.workers_ready_to_simulate.pop()
                 action_id = self._select_action()
@@ -112,11 +113,20 @@ class ForwardSearchPolicy(object):
                 self.num_simulations_in_progress += 1
                 self.num_simulations_started_each_action[action_id] += 1
 
+                while_loop_count += 1
+                if while_loop_count > len(self.remotes):
+                    break
+
+            while_loop_count = 0
             while not self.shared_queue.empty():
                 pred_val, ac_id, worker_id = self.shared_queue.get()
                 # print("action: {}. pred_val: {}".format(ac_id, pred_val))
                 self._update_stats(pred_val, ac_id)
                 self.workers_ready_to_simulate.append(worker_id)
+
+                while_loop_count += 1
+                if while_loop_count > len(self.remotes):
+                    break
 
             elapsed_time = time.time() - start_time
 

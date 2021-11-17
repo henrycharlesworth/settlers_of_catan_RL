@@ -1188,6 +1188,16 @@ class Game(object):
                     avail_res += [key] * val
                 np.random.shuffle(avail_res)
                 while sum(min_res.values()) < total_resources:
-                    res = avail_res.pop()
-                    min_res[res] += 1
+                    if len(avail_res) > 0:
+                        res = avail_res.pop()
+                        min_res[res] += 1
+                    else:
+                        continue
                 self.players[player_id].resources = min_res
+
+        """check sum of resources in players and bank adds up correctly"""
+        for res in [Resource.Sheep, Resource.Brick, Resource.Ore, Resource.Wheat, Resource.Wood]:
+            in_hand = 0
+            for player_id in self.players.keys():
+                in_hand += self.players[player_id].resources[res]
+            self.resource_bank[res] = 19 - in_hand

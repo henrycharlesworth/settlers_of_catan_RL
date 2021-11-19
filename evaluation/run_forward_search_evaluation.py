@@ -3,7 +3,6 @@ import torch
 import argparse
 from pathlib import Path
 from collections import defaultdict
-import joblib
 import random
 
 from evaluation.evaluation_manager import EvaluationManager
@@ -23,6 +22,7 @@ parser.add_argument('--consider-all-moves-for-opening-placements', action='store
 parser.add_argument('--dont-propose-devcards', action='store_true', default=False)
 parser.add_argument('--dont-propose-trades', action='store_true', default=False)
 parser.add_argument('--zero-opponent-hidden-states', action='store_true', default=False)
+parser.add_argument('--other-policies', type=str, default="")
 
 args = parser.parse_args()
 
@@ -33,6 +33,16 @@ random.seed(10)
 if __name__ == "__main__":
     policy_state_dict = torch.load(Path("RL", "results", args.base_policy_file), map_location="cpu")
 
+    if args.other_policies != "":
+        other_policies = args.other_policies.split(" ")
+        if len(other_policies) == 1:
+            other_policies = [other_policies[0]] * 3
+        other_policy_state_dicts = [
+            torch.load(Path("RL", "results", other_policies[i]), map_location="cpu") for i in range(3)
+        ]
+    else:
+        other_policy_state_dicts = [policy_state_dict, policy_state_dict, policy_state_dict]
+
     forward_search_policy = ForwardSearchPolicy(policy_state_dict, default_sample_actions, args.max_init_actions,
                                                 args.max_depth, args.max_thinking_time, gamma=args.gamma,
                                                 num_subprocesses=args.num_subprocesses,
@@ -42,7 +52,7 @@ if __name__ == "__main__":
                                                 dont_propose_devcards=args.dont_propose_devcards)
     policies = [forward_search_policy, build_agent_model(), build_agent_model(), build_agent_model()]
     for i in range(1, 4):
-        policies[i].load_state_dict(policy_state_dict)
+        policies[i].load_state_dict(other_policy_state_dicts[i-1])
 
     evaluation_manager = EvaluationManager(policies=policies)
 
@@ -67,6 +77,6 @@ if __name__ == "__main__":
             i+1, winner, np.mean(np.array(winners_all)==0)
         ))
 
-        joblib.dump((
+        torch.save((
             winners_all, num_game_steps_all, victory_points_all, forward_policy_decisions_all, sorted(dict(action_types_all).items())
-        ), "forward_policy_evaluation.pkl")
+        ), "forward_policy_evaluation.pt")

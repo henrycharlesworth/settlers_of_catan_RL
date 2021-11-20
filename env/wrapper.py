@@ -49,7 +49,9 @@ class EnvWrapper(object):
         return obs, reward, done, info
 
     def _get_obs(self):
-        if self.game.must_respond_to_trade:
+        if self.game.players_need_to_discard:
+            player = self.game.players[self.game.players_to_discard[0]]
+        elif self.game.must_respond_to_trade:
             player = self.game.players[self.game.proposed_trade["target_player"]]
         else:
             player = self.game.players[self.game.players_go]
@@ -147,6 +149,8 @@ class EnvWrapper(object):
                 translated_action["response"] = "reject"
             else:
                 raise ValueError
+        elif action_type == ActionTypes.DiscardResource:
+            translated_action["resources"] = [self._head_out_to_res(action[11])]
 
         return translated_action
 
@@ -165,8 +169,17 @@ class EnvWrapper(object):
             np.ones((6,)), #propose trade head
             np.ones((6,)), #propose trade receive head
             np.ones((4, 5)), #exchange this res head
-            np.ones((5,)) #receive this res head
+            np.ones((5,)), #receive this res head
+            np.ones((5,)) #discard resource head
         ]
+        if self.game.players_need_to_discard:
+            player = self.game.players[self.game.players_to_discard[0]]
+            valid_actions[0][ActionTypes.DiscardResource] = 1.0
+            for i, res in enumerate([Resource.Brick, Resource.Wood, Resource.Ore, Resource.Sheep, Resource.Wheat]):
+                if player.resources[res] <= 0:
+                    valid_actions[11][i] = 0.0
+            return valid_actions
+
         """Action types"""
         if self.game.initial_placement_phase:
             if self.game.initial_settlements_placed[player.id] == 0 \

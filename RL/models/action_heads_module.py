@@ -32,7 +32,7 @@ class MultiActionHeadsGeneralised(nn.Module):
         entropy = 0
 
         if condition_on_action_type is not None:
-            type_output = torch.zeros(1, 12, dtype=torch.float32, device=self.dummy_param.device)
+            type_output = torch.zeros(1, 13, dtype=torch.float32, device=self.dummy_param.device)
             type_output[0, condition_on_action_type] = 1.0
             first_output = torch.tensor([[condition_on_action_type]], dtype=torch.long, device=self.dummy_param.device)
             first_filter = torch.zeros(1, 1, dtype=torch.float32, device=self.dummy_param.device)

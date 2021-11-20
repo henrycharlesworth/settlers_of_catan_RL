@@ -75,7 +75,9 @@ class EvaluationManager(object):
         return winner, victory_points, total_game_steps, policy_decisions
 
     def _get_players_turn(self, env):
-        if env.game.must_respond_to_trade:
+        if env.game.players_need_to_discard:
+            player_id = env.game.players_to_discard[0]
+        elif env.game.must_respond_to_trade:
             player_id = env.game.proposed_trade["target_player"]
         else:
             player_id = env.game.players_go

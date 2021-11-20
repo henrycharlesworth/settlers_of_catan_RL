@@ -1,5 +1,4 @@
 import random
-import numpy as np
 import torch
 import copy
 
@@ -83,26 +82,14 @@ class GamesAndPoliciesManager(object):
                     hidden_states = self.current_hidden_states[env_num][players_go]
                     action_masks = self.policies[0].act_masks_to_torch(self.envs[env_num].get_action_masks())
 
-
-                    try:
-                        _, actions, action_log_probs, hidden_states = self.policy_maps[env_num][players_go].act(
-                            obs, hidden_states, terminal_mask, action_masks
-                        )
-                    except:
-                        torch.save((self.policy_maps[env_num][players_go].state_dict(), players_go, obs, hidden_states, action_masks),
-                                   "action_error_" + str(int(np.random.randint(0,10000))) + ".pt")
-                        print("successfully dumped action error info.")
+                    _, actions, action_log_probs, hidden_states = self.policy_maps[env_num][players_go].act(
+                        obs, hidden_states, terminal_mask, action_masks
+                    )
 
                     self.current_hidden_states[env_num][players_go] = hidden_states
 
-                    try:
-                        obs, reward, done, _ = self.envs[env_num].step(self.policies[0].torch_act_to_np(actions))
-                        obs = self.policies[0].obs_to_torch(obs)
-                    except:
-                        torch.save((self.envs[env_num].game.players, self.envs[env_num].game.resource_bank,
-                                    actions, action_masks, hidden_states, players_go, obs),
-                                   "step_error_" + str(int(np.random.randint(0, 10000))) + ".pt")
-                        print("Successfully dumped step error info.")
+                    obs, reward, done, _ = self.envs[env_num].step(self.policies[0].torch_act_to_np(actions))
+                    obs = self.policies[0].obs_to_torch(obs)
 
                     for player_id in [PlayerId.White, PlayerId.Blue, PlayerId.Red, PlayerId.Orange]:
                         rewards[player_id] += reward[player_id]
@@ -163,7 +150,9 @@ class GamesAndPoliciesManager(object):
             self.rewards[env_num] = []
 
     def _get_players_turn(self, env):
-        if env.game.must_respond_to_trade:
+        if env.game.players_need_to_discard:
+            player_id = env.game.players_to_discard[0]
+        elif env.game.must_respond_to_trade:
             player_id = env.game.proposed_trade["target_player"]
         else:
             player_id = env.game.players_go

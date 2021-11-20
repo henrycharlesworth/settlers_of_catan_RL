@@ -531,7 +531,9 @@ class Display(object):
         self.screen.blit(self.ai_play_image, (30, self.screen.get_height()-180))
 
     def render_top_menu(self):
-        if self.game.must_respond_to_trade:
+        if self.game.players_need_to_discard:
+            player = self.game.players[self.game.players_to_discard[0]]
+        elif self.game.must_respond_to_trade:
             player = self.game.players[self.game.proposed_trade["target_player"]]
         else:
             player = self.game.players[self.game.players_go]
@@ -782,7 +784,9 @@ class Display(object):
             return done
 
     def get_players_turn(self):
-        if self.game.must_respond_to_trade:
+        if self.game.players_need_to_discard:
+            player_id = self.game.players_to_discard[0]
+        elif self.game.must_respond_to_trade:
             player_id = self.game.proposed_trade["target_player"]
         else:
             player_id = self.game.players_go
@@ -1123,6 +1127,23 @@ class Display(object):
                     else:
                         self.active_receive_res = []
                         self.active_trade_res = []
+            elif mouse_pos[0] > 1585 and mouse_pos[0] < 1700 and mouse_pos[1] > 932 and mouse_pos[1] < 963:
+                if mouse_click:
+                    if self.game.players_need_to_discard == False:
+                        messagebox.showinfo('Error', "No one needs to discard resources at the moment")
+                    else:
+                        action = {
+                            "type": ActionTypes.DiscardResource,
+                            "resources": copy.copy(self.active_trade_res)
+                        }
+                        valid_action, error = self.game.validate_action(action, check_player=True)
+                        if valid_action:
+                            action_log = self.game.apply_action(action)
+                            self.update_game_log(action_log)
+                            self.active_trade_res = []
+                            self.active_receive_res = []
+                        else:
+                            messagebox.showinfo('Error', error)
             elif mouse_pos[0] > 1437 and mouse_pos[0] < 1565 and mouse_pos[1] > 687 and mouse_pos[1] < 721:
                 if mouse_click:
                     if len(self.active_other_player) == 0:

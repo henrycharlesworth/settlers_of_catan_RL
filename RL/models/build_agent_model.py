@@ -7,7 +7,7 @@ from RL.models.action_heads_module import ActionHead, RecurrentResourceActionHea
 from RL.models.policy import SettlersAgentPolicy
 
 """constants"""
-ACTION_TYPE_COUNT = 12
+ACTION_TYPE_COUNT = 13
 N_CORNERS = 54
 N_EDGES = 72
 N_TILES = 19
@@ -29,7 +29,7 @@ proj_dev_card_dim = 25
 dev_card_model_num_heads = 4
 tile_encoder_num_layers = 2
 proj_tile_dim = 25
-action_mlp_sizes = [128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128]
+action_mlp_sizes = [128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128]
 max_propose_res = 4 #maximum resources to include in proposition
 
 
@@ -68,9 +68,11 @@ def build_agent_model(tile_in_dim=tile_in_dim, tile_model_dim = tile_model_dim, 
     exchange_res_head = ActionHead(lstm_dim + 4, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[9], id="exchange_res_head")
     receive_res_head = ActionHead(lstm_dim + 4 + RESOURCE_DIM - 1, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[10],
                                   id="receive_res_head")
+    discard_head = ActionHead(lstm_dim, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[10], id="discard_res_head")
 
     action_heads = [action_type_head, corner_head, edge_head, tile_head, play_development_card_head, accept_reject_head,
-                    player_head, propose_give_res_head, propose_receive_res_head, exchange_res_head, receive_res_head]
+                    player_head, propose_give_res_head, propose_receive_res_head, exchange_res_head, receive_res_head,
+                    discard_head]
 
     """action maps - will hopefully write up full details of how this all works because it's confusing."""
     autoregressive_map = [
@@ -86,7 +88,8 @@ def build_agent_model(tile_in_dim=tile_in_dim, tile_model_dim = tile_model_dim, 
         [[-1, None], [0, lambda x: torch.cat((x[:, 4].view(-1, 1) > 0, x[:, 5].view(-1, 1) > 0), dim=-1).float()],
          [4, lambda x: torch.cat((x[:, 2].view(-1, 1) > 0, x[:, 4].view(-1, 1) > 0), dim=-1).float()]],
         [[-1, None], [0, lambda x: torch.cat((x[:, 4].view(-1, 1) > 0, x[:, 5].view(-1, 1) > 0), dim=-1).float()],
-         [4, lambda x: torch.cat((x[:, 2].view(-1, 1) > 0, x[:, 4].view(-1, 1) > 0), dim=-1).float()], [9, None]]
+         [4, lambda x: torch.cat((x[:, 2].view(-1, 1) > 0, x[:, 4].view(-1, 1) > 0), dim=-1).float()], [9, None]],
+        [[-1, None]]
     ]
 
     """
@@ -104,16 +107,17 @@ def build_agent_model(tile_in_dim=tile_in_dim, tile_model_dim = tile_model_dim, 
     """
     type_conditional_action_masks = [
         {},
-        {0: torch.tensor([0, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2], dtype=torch.long, device=device)},
         {},
         {},
         {},
         {},
-        {0: torch.tensor([2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 1], dtype=torch.long, device=device)},
+        {0: torch.tensor([2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 1, 2], dtype=torch.long, device=device)},
         {},
         {},
-        {0: torch.tensor([1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1], dtype=torch.long, device=device),
+        {0: torch.tensor([1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1], dtype=torch.long, device=device),
          4: torch.tensor([1, 1, 3, 1, 2], dtype=torch.long, device=device)},
+        {},
         {}
     ]
 
@@ -122,18 +126,19 @@ def build_agent_model(tile_in_dim=tile_in_dim, tile_model_dim = tile_model_dim, 
     """
     log_prob_masks = [
         None,
-        {0: torch.tensor([1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device),
+        {0: torch.tensor([1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device),
          4: torch.tensor([0, 0, 1, 0, 1], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device),
-         4: torch.tensor([0, 0, 1, 0, 0], dtype=torch.long, device=device)}
+        {0: torch.tensor([0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device),
+         4: torch.tensor([0, 0, 1, 0, 0], dtype=torch.long, device=device)},
+        {0: torch.tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])}
     ]
 
     multi_action_head = MultiActionHeadsGeneralised(action_heads, autoregressive_map, lstm_dim, log_prob_masks,

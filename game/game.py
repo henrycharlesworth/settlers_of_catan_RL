@@ -108,6 +108,9 @@ class Game(object):
         self.road_building_active = [False, 0] #active, num roads placed
         self.can_move_robber = False
         self.just_moved_robber = False
+        self.players_need_to_discard = False
+        self.players_to_discard = []
+
         self.die_1 = None
         self.die_2 = None
         self.trades_proposed_this_turn = 0
@@ -139,6 +142,10 @@ class Game(object):
         roll_value = int(self.die_1 + self.die_2)
 
         if roll_value == 7:
+            for p_id in self.player_order:
+                if sum(self.players[p_id].resources.values()) > 7:
+                    self.players_need_to_discard = True
+                    self.players_to_discard.append(p_id)
             return roll_value
 
         tiles_hit = self.board.value_to_tiles[roll_value]
@@ -256,7 +263,9 @@ class Game(object):
 
     def validate_action(self, action, check_player=False):
         if check_player and self.policies is not None:
-            if self.must_respond_to_trade:
+            if self.players_need_to_discard:
+                curr_player = self.players[self.players_to_discard[0]].id
+            elif self.must_respond_to_trade:
                 curr_player = self.players[self.proposed_trade["target_player"]].id
             else:
                 curr_player = self.players[self.players_go].id
@@ -266,6 +275,32 @@ class Game(object):
                 return False, "This player is registered as an AI. Click AI Decision to make them play."
 
         player = self.players[self.players_go]
+
+        if self.players_need_to_discard:
+            if action["type"] != ActionTypes.DiscardResource:
+                return False, "A 7 was rolled and you have more than 7 resources. You must discard resources until you only have 7 resources."
+            else:
+                curr_player = self.players[self.players_to_discard[0]]
+                total_current_res = sum(curr_player.resources.values())
+                if total_current_res <= 7:
+                    raise ValueError("Player is being told to discard when they have less than 7 or less resources!")
+                else:
+                    if isinstance(action["resources"], list):
+                        pass
+                    else:
+                        action["resource"] = [action["resources"]]
+                    if total_current_res - len(action["resources"]) < 7:
+                        return False, "You are trying to discard too many resources!"
+                    curr_res = copy.copy(curr_player.resources)
+                    for res in action["resources"]:
+                        if curr_res[res] <= 0:
+                            return False, "You do not have these resources to discard!"
+                        else:
+                            curr_res[res] -= 1
+                    return True, None
+        else:
+            if action["type"] == ActionTypes.DiscardResource:
+                return False, "You cannot discard resources at the moment!"
 
         if action["type"] == ActionTypes.PlaceSettlement:
             if self.must_respond_to_trade:
@@ -747,7 +782,31 @@ class Game(object):
                 self.proposed_trade = None
             else:
                 self.proposed_trade = None
-        if action["type"] != ActionTypes.RespondToOffer and action["type"] != ActionTypes.EndTurn:
+        elif action["type"] == ActionTypes.DiscardResource:
+            player_discarding = self.players[self.players_to_discard[0]]
+            if isinstance(action["resources"], list):
+                pass
+            else:
+                action["resources"] = [action["resources"]]
+            res_dict = defaultdict(lambda: 0)
+            for res in action["resources"]:
+                res_dict[res] -= 1
+                player_discarding.resources[res] -= 1
+                self.resource_bank[res] += 1
+            self.update_player_resource_estimates(res_dict, player_discarding.id)
+            if sum(player_discarding.resources.values()) <= 7:
+                self.players_to_discard.remove(player_discarding.id)
+                if len(self.players_to_discard) == 0:
+                    self.players_need_to_discard = False
+            if return_message:
+                message = {"player_id": player_discarding.id}
+                text = "Discarded "
+                for res in action["resources"]:
+                    text += self.resource_text[res] + ", "
+                text = text[:-2] + "."
+                message["text"] = text
+
+        if action["type"] != ActionTypes.RespondToOffer and action["type"] != ActionTypes.EndTurn and action["type"] != ActionTypes.DiscardResource:
             self.actions_this_turn += 1
 
         if self.interactive == False and self.display is not None:
@@ -955,6 +1014,9 @@ class Game(object):
 
         state = {}
 
+        state["players_need_to_discard"] = self.players_need_to_discard
+        state["players_to_discard"] = copy.copy(self.players_to_discard)
+
         state["tile_info"] = []
         for tile in self.board.tiles:
             state["tile_info"].append(
@@ -1031,6 +1093,9 @@ class Game(object):
     def restore_state(self, state):
 
         state = copy.deepcopy(state) #prevent state being changed
+
+        self.players_to_discard = state["players_to_discard"]
+        self.players_need_to_discard = state["players_need_to_discard"]
 
         self.board.value_to_tiles = {}
 
@@ -1138,31 +1203,6 @@ class Game(object):
         self.current_army_size = state["current_army_size"]
         self.die_1 = state["die_1"]
         self.die_2 = state["die_2"]
-
-
-    # def setup_dummy_test_example(self, controlling_player_id):
-    #     for player_id in self.players.keys():
-    #         self.players[player_id].hidden_cards.append(self.development_cards_pile.pop())
-    #         self.players[player_id].hidden_cards.append(self.development_cards_pile.pop())
-    #
-    #         self.players[player_id].resources = {
-    #             Resource.Brick: np.random.randint(2, 10),
-    #             Resource.Wood: np.random.randint(2, 10),
-    #             Resource.Wheat: np.random.randint(2, 10),
-    #             Resource.Sheep: np.random.randint(2, 10),
-    #             Resource.Ore: np.random.randint(2, 10)
-    #         }
-    #
-    #     for player_id in self.players.keys():
-    #         if player_id != controlling_player_id:
-    #             label = self.players[controlling_player_id].player_lookup[player_id]
-    #             self.players[controlling_player_id].opponent_min_res[label] = copy.copy(self.players[player_id].resources)
-    #             self.players[controlling_player_id].opponent_max_res[label] = copy.copy(self.players[player_id].resources)
-    #             for res in [Resource.Brick, Resource.Wood, Resource.Wheat, Resource.Sheep, Resource.Ore]:
-    #                 num = np.random.randint(0, 2)
-    #                 self.players[controlling_player_id].opponent_min_res[label][res] -= num
-    #                 for res2 in [Resource.Brick, Resource.Wood, Resource.Wheat, Resource.Sheep, Resource.Ore]:
-    #                     self.players[controlling_player_id].opponent_max_res[label][res2] += num
 
     def randomise_uncertainty(self, controlling_player_id):
         """inject random uncertainty given controlling player's current information."""

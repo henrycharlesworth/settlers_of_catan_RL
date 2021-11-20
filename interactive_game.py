@@ -42,4 +42,4 @@ policies = {
 
 env = EnvWrapper(policies=policies)
 env.reset()
-display = Display(env=env, game=env.game, interactive=True, policies=policies, test=False)
+display = Display(env=env, game=env.game, interactive=True, policies=policies, test=False, debug_mode=True)

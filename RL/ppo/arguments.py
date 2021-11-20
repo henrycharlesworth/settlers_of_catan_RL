@@ -64,7 +64,7 @@ def get_args():
         '--cuda-deterministic', action='store_true', default=False
     )
     parser.add_argument(
-        '--num-policies-to-store', type=int, default=100
+        '--num-policies-to-store', type=int, default=2000
     )
     parser.add_argument(
         '--add-policy-every', type=int, default=5, help='add new policy every this many updates'

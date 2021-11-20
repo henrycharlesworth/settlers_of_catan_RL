@@ -6,7 +6,7 @@ import random
 max_prop_trade_actions = 3
 
 action_type_priorities = {
-    1: ["settlement", "city", "move_robber", "steal"],
+    1: ["settlement", "city", "move_robber", "steal", "discard"],
     2: ["road"],
     3: ["play_dev"],
     4: ["exchange_res", "prop_trade"]
@@ -24,7 +24,8 @@ type_to_ind = {
     "move_robber": 8,
     "roll_dice": 9,
     "end_turn": 10,
-    "steal": 11
+    "steal": 11,
+    "discard": 12
 }
 
 def update_action_masks(action, action_masks):
@@ -46,6 +47,9 @@ def update_action_masks(action, action_masks):
     elif action[0] == 11:
         if sum(action_masks[6][1]) > 0:
             action_masks[6][1][action[6]] = 0
+    elif action[0] == 12:
+        if sum(action_masks[11]) > 1:
+            action_masks[11][action[11]] = 0
     return action_masks
 
 def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
@@ -239,6 +243,22 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
                                            deterministic=False, condition_on_action_type=11)
         action = policy.torch_act_to_np(action)
         assert action[0] == 11
+
+        proposed_actions.append(action)
+        hidden_states_after.append(copy.deepcopy(next_hs))
+        actions_sampled += 1
+
+        action_masks = update_action_masks(action, action_masks)
+        action_masks_torch = policy.act_masks_to_torch(copy.copy(action_masks))
+
+    if type_masks[12] == 1: #discard
+        actions_available_type["discard"] = np.sum(action_masks[11]) - 1
+        effective_actions_available += actions_available_type["discard"]
+
+        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                           deterministic=False, condition_on_action_type=12)
+        action = policy.torch_act_to_np(action)
+        assert action[0] == 12
 
         proposed_actions.append(action)
         hidden_states_after.append(copy.deepcopy(next_hs))

@@ -47,6 +47,7 @@ class ActionTypes(IntEnum):
     RollDice = 9
     EndTurn = 10
     StealResource = 11
+    DiscardResource = 12
 
 TILE_ADJACENCY_INDS = [
     [[1, "R"], [3, "BL"], [4, "BR"]],

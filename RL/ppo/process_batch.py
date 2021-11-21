@@ -15,7 +15,7 @@ TYPE_CONDITIONAL_MASKS = [1, 6, 9]
 
 class BatchProcessor(object):
     def __init__(self, args, lstm_dim, obs_keys=OBS_KEYS, obs_type=OBS_TYPES,
-                 type_conditional_masks=TYPE_CONDITIONAL_MASKS, num_action_heads=11, device="cuda",
+                 type_conditional_masks=TYPE_CONDITIONAL_MASKS, num_action_heads=12, device="cuda",
                  stored_device="cpu"):
         self.args = args
         self.num_steps = args.num_steps

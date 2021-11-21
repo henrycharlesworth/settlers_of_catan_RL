@@ -158,10 +158,8 @@ def main():
 
 
     while update_num < num_updates:
-        try:
-            run_update()
-        except:
-            break
+
+        run_update()
 
         if psutil.virtual_memory().percent > 95.0:
             #stupid memory leak - need to restart everything using a bash script as a workaround...

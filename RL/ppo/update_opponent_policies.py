@@ -26,7 +26,7 @@ def update_opponent_policies(earlier_policies, rollout_manager, args):
         rollout_manager.update_policy(policy_dicts[1], process_id=i, policy_id=2)
         rollout_manager.update_policy(policy_dicts[2], process_id=i, policy_id=3)
 
-def get_prob_dist(num_policies, linear_num=800, linear_prob=0.3):
+def get_prob_dist(num_policies, linear_num=800, linear_prob=0.5):
     p = ((1-linear_prob) / num_policies) * np.ones((num_policies,))
 
     num_aux = min(linear_num, num_policies)
@@ -42,9 +42,9 @@ def get_prob_dist(num_policies, linear_num=800, linear_prob=0.3):
 
     return p
 
-num_pols = 1000
-x = np.arange(num_pols)
-p = get_prob_dist(num_pols)
-
-plt.plot(x, p)
-plt.show()
+# num_pols = 1000
+# x = np.arange(num_pols)
+# p = get_prob_dist(num_pols)
+#
+# plt.plot(x, p)
+# plt.show()

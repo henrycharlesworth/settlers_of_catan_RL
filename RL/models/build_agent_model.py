@@ -138,7 +138,7 @@ def build_agent_model(tile_in_dim=tile_in_dim, tile_model_dim = tile_model_dim, 
          4: torch.tensor([0, 0, 1, 0, 1], dtype=torch.long, device=device)},
         {0: torch.tensor([0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0], dtype=torch.long, device=device),
          4: torch.tensor([0, 0, 1, 0, 0], dtype=torch.long, device=device)},
-        {0: torch.tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])}
+        {0: torch.tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], dtype=torch.long, device=device)}
     ]
 
     multi_action_head = MultiActionHeadsGeneralised(action_heads, autoregressive_map, lstm_dim, log_prob_masks,

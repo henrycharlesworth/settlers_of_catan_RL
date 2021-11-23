@@ -127,8 +127,6 @@ def main():
 
             print(print_summary)
 
-            torch.save((central_policy.state_dict(), earlier_policies, eval_logs, update_num, args),
-                       "RL/results/current.pt")
             torch.save(central_policy.state_dict(),
                        "RL/results/" + args.expt_id + "_after_update_" + str(update_num) + ".pt")
 

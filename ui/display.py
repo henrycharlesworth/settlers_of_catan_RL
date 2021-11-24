@@ -758,10 +758,26 @@ class Display(object):
             curr_hidden_state = self.curr_hidden_states[players_go]
             action_masks = self.dummy_policy.act_masks_to_torch(self.env.get_action_masks())
 
-            _, actions, _, hidden_states = self.policies[players_go].act(
-                curr_obs, curr_hidden_state, torch.ones(1, 1, device=self.dummy_policy.dummy_param.device),
-                action_masks, deterministic=deterministic
-            )
+            if self.policies[players_go] == "neural_network":
+                _, actions, _, hidden_states = self.policies[players_go].act(
+                    curr_obs, curr_hidden_state, torch.ones(1, 1, device=self.dummy_policy.dummy_param.device),
+                    action_masks, deterministic=deterministic
+                )
+            elif self.policies[players_go] == "forward_search":
+                """RENDER THINKING HERE..."""
+                curr_state = self.env.save_state()
+                placing_initial_settlement = False
+                if self.env.game.initial_settlements_placed[players_go] == 0:
+                    placing_initial_settlement = True
+                elif self.env.game.initial_settlements_placed[players_go] == 1 and self.env.game.initial_roads_placed[
+                    players_go] == 1:
+                    placing_initial_settlement = True
+                actions, hidden_states = self.policies[players_go].act(
+                    curr_obs, curr_hidden_state, curr_state, action_masks, initial_settlement=placing_initial_settlement
+                )
+            else:
+                raise NotImplementedError
+
             self.curr_hidden_states[players_go] = hidden_states
 
             _, _, done, info = self.env.step(

@@ -73,7 +73,7 @@ class EvaluationManager(object):
                         placing_initial_settlement = True
                     elif self.env.game.initial_settlements_placed[players_go] == 1 and self.env.game.initial_roads_placed[players_go] == 1:
                         placing_initial_settlement = True
-                    actions = self.policies[self.policy_map[players_go]].act(
+                    actions, hidden_states = self.policies[self.policy_map[players_go]].act(
                         obs, self.current_hidden_states, curr_state, action_masks, decision_no=policy_decisions,
                         initial_settlement = placing_initial_settlement
                     )

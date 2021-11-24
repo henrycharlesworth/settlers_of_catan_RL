@@ -139,7 +139,7 @@ class ForwardSearchPolicy(object):
 
         best_action_id = self._select_action(explore=False)
         print("\nDecision: {}. Action id: {}. value for best action: {:.2f} (num times selected: {})\n".format(decision_no, best_action_id, self.exploit_scores[best_action_id] / self.num_simulations_finished_each_action[best_action_id], self.num_simulations_finished_each_action[best_action_id]))
-        return self.proposed_actions[best_action_id]
+        return self.proposed_actions[best_action_id], self.player_next_hidden_states[best_action_id]
 
     def _select_action(self, explore=True):
         best_score = -np.inf

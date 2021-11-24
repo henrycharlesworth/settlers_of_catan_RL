@@ -52,7 +52,7 @@ def main():
     central_policy = build_agent_model(device=device)
 
     if args.load_from_checkpoint:
-        central_policy_sd, earlier_policies, eval_logs, start_update, args = torch.load("RL/results/"+args.load_file_path)
+        central_policy_sd, earlier_policies, eval_logs, start_update, args = torch.load("RL/results/"+args.load_file_path, map_location="cpu")
         update_opponent_policies(earlier_policies, rollout_manager, args)
         central_policy.load_state_dict(central_policy_sd)
         central_policy.to("cpu")
@@ -94,6 +94,8 @@ def main():
         rollouts = rollout_manager.gather_rollouts()
         rollout_storage.process_rollouts(rollouts)
 
+        print(rollout_storage.masks.shape)
+
         if args.truncated_seq_len != -1:
             alt_generator = True
         else:
@@ -118,7 +120,6 @@ def main():
 
         if update_num % args.update_opponent_policies_every == 0:
             update_opponent_policies(earlier_policies, rollout_manager, args)
-            rollout_manager.reset()
 
         if update_num % args.eval_every == 0 and update_num > 0:
             log, print_summary = run_evaluation_protocol(evaluation_manager, central_policy, earlier_policies,

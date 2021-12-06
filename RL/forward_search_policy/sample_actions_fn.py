@@ -79,8 +79,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         actions_available_type["settlement"] = np.sum(action_masks[1][0]) - 1
         effective_actions_available += actions_available_type["settlement"]
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch, deterministic=False,
-                                                      condition_on_action_type=0)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch, deterministic=False,
+                                                          condition_on_action_type=0)
         action = policy.torch_act_to_np(action)
         assert action[0] == 0
 
@@ -95,8 +96,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         actions_available_type["road"] = np.sum(action_masks[2]) - 1
         effective_actions_available += actions_available_type["road"]
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                                      deterministic=False, condition_on_action_type=1)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                                          deterministic=False, condition_on_action_type=1)
         action = policy.torch_act_to_np(action)
         assert action[0] == 1
 
@@ -111,8 +113,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         actions_available_type["city"] = np.sum(action_masks[1][1]) - 1
         effective_actions_available += actions_available_type["city"]
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                                deterministic=False, condition_on_action_type=2)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                                    deterministic=False, condition_on_action_type=2)
         action = policy.torch_act_to_np(action)
         assert action[0] == 2
 
@@ -127,8 +130,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         if dont_propose_devcards == False:
             effective_actions_available += 0
 
-            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                                    deterministic=False, condition_on_action_type=3)
+            with torch.no_grad():
+                _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                                        deterministic=False, condition_on_action_type=3)
             action = policy.torch_act_to_np(action)
             assert action[0] == 3
 
@@ -141,8 +145,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
             actions_available_type["play_dev"] = np.sum(action_masks[4]) - 1
             effective_actions_available += actions_available_type["play_dev"]
 
-            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                               deterministic=False, condition_on_action_type=4)
+            with torch.no_grad():
+                _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                                   deterministic=False, condition_on_action_type=4)
             action = policy.torch_act_to_np(action)
             assert action[0] == 4
 
@@ -157,8 +162,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         actions_available_type["exchange_res"] = np.sum(action_masks[10]) * np.sum(action_masks[9][0]) - 1
         effective_actions_available += actions_available_type["exchange_res"]
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                           deterministic=False, condition_on_action_type=5)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                               deterministic=False, condition_on_action_type=5)
         action = policy.torch_act_to_np(action)
         assert action[0] == 5
 
@@ -173,8 +179,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
             actions_available_type["prop_trade"] = max_prop_trade_actions - 1
             effective_actions_available += actions_available_type["prop_trade"]
 
-            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                               deterministic=False, condition_on_action_type=6)
+            with torch.no_grad():
+                _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                                   deterministic=False, condition_on_action_type=6)
             action = policy.torch_act_to_np(action)
             assert action[0] == 6
 
@@ -186,8 +193,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
     if type_masks[7] == 1: #respond to trade
         effective_actions_available += np.sum(action_masks[5]) - 1
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                           deterministic=False, condition_on_action_type=7)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                               deterministic=False, condition_on_action_type=7)
         action = policy.torch_act_to_np(action)
         assert action[0] == 7
 
@@ -199,8 +207,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         actions_available_type["move_robber"] = np.sum(action_masks[3]) - 1
         effective_actions_available += actions_available_type["move_robber"]
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                           deterministic=False, condition_on_action_type=8)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                               deterministic=False, condition_on_action_type=8)
         action = policy.torch_act_to_np(action)
         assert action[0] == 8
 
@@ -214,8 +223,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
     if type_masks[9] == 1: #roll dice
         effective_actions_available += 0
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                           deterministic=False, condition_on_action_type=9)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                               deterministic=False, condition_on_action_type=9)
         action = policy.torch_act_to_np(action)
         assert action[0] == 9
 
@@ -226,8 +236,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
     if type_masks[10] == 1: #end turn
         effective_actions_available += 0
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                           deterministic=False, condition_on_action_type=10)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                               deterministic=False, condition_on_action_type=10)
         action = policy.torch_act_to_np(action)
         assert action[0] == 10
 
@@ -239,8 +250,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         actions_available_type["steal"] = np.sum(action_masks[6][1]) - 1
         effective_actions_available += actions_available_type["steal"]
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                           deterministic=False, condition_on_action_type=11)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                               deterministic=False, condition_on_action_type=11)
         action = policy.torch_act_to_np(action)
         assert action[0] == 11
 
@@ -255,8 +267,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         actions_available_type["discard"] = np.sum(action_masks[11]) - 1
         effective_actions_available += actions_available_type["discard"]
 
-        _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                           deterministic=False, condition_on_action_type=12)
+        with torch.no_grad():
+            _, action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                               deterministic=False, condition_on_action_type=12)
         action = policy.torch_act_to_np(action)
         assert action[0] == 12
 
@@ -290,8 +303,9 @@ def default_sample_actions(obs, hidden_state, action_masks, policy, max_actions,
         if ac_type is None:
             break #something gone wrong - but just return what we have.
 
-        _, policy_action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
-                                                  deterministic=False, condition_on_action_type=type_to_ind[ac_type])
+        with torch.no_grad():
+            _, policy_action, _, next_hs = policy.act(obs, hidden_state, terminal_mask, action_masks_torch,
+                                                      deterministic=False, condition_on_action_type=type_to_ind[ac_type])
         policy_action = policy.torch_act_to_np(policy_action)
 
         hidden_states_after.append(next_hs)

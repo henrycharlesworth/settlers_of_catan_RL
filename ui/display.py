@@ -224,6 +224,7 @@ class Display(object):
         pygame.font.init()
         self.top_menu_font = pygame.font.SysFont('Arial', 45)
         self.count_font = pygame.font.SysFont('Arial', 18)
+        self.thinking_font = pygame.font.SysFont('Arial', 36)
         self.construct_outer_board_polygon()
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         pygame.display.set_caption("Settlers of Catan RL environment")
@@ -760,14 +761,33 @@ class Display(object):
             curr_hidden_state = self.curr_hidden_states[players_go]
             action_masks = self.dummy_policy.act_masks_to_torch(self.env.get_action_masks())
 
-            _, actions, _, hidden_states = self.policies[players_go].act(
-                curr_obs, curr_hidden_state, torch.ones(1, 1, device=self.dummy_policy.dummy_param.device),
-                action_masks, deterministic=deterministic
-            )
+            if self.policies[players_go].policy_type == "neural_network":
+                _, actions, _, hidden_states = self.policies[players_go].act(
+                    curr_obs, curr_hidden_state, torch.ones(1, 1, device=self.dummy_policy.dummy_param.device),
+                    action_masks, deterministic=deterministic
+                )
+                actions = self.dummy_policy.torch_act_to_np(actions)
+            elif self.policies[players_go].policy_type == "forward_search":
+                self.render_thinking_text()
+                pygame.display.update()
+                pygame.event.pump()
+                curr_state = self.env.save_state()
+                placing_initial_settlement = False
+                if self.env.game.initial_settlements_placed[players_go] == 0:
+                    placing_initial_settlement = True
+                elif self.env.game.initial_settlements_placed[players_go] == 1 and self.env.game.initial_roads_placed[
+                    players_go] == 1:
+                    placing_initial_settlement = True
+                actions, hidden_states = self.policies[players_go].act(
+                    curr_obs, self.curr_hidden_states, curr_state, action_masks, initial_settlement=placing_initial_settlement
+                )
+                self.render_board()
+            else:
+                raise NotImplementedError
             self.curr_hidden_states[players_go] = hidden_states
 
             _, _, done, info = self.env.step(
-                self.dummy_policy.torch_act_to_np(actions)
+                actions
             )
             self.update_game_log(info["log"])
             if done:
@@ -791,6 +811,10 @@ class Display(object):
         else:
             player_id = self.game.players_go
         return player_id
+
+    def render_thinking_text(self):
+        thinking_text = self.thinking_font.render("THINKING...", False, (255, 255, 255))
+        self.screen.blit(thinking_text, (30, self.screen.get_height() - 200))
 
     def run_event_loop(self, test=False):
         run = True

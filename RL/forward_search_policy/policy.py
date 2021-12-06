@@ -18,13 +18,14 @@ class ForwardSearchPolicy(object):
     def __init__(self, base_policy_state_dict, sample_actions_fn, max_init_actions=10, max_depth=20,
                  max_thinking_time=10, gamma=0.999, num_subprocesses=11, subprocess_start_method=None,
                  player_id=None, zero_opponent_hidden_states=False, consider_all_moves_for_opening_placement=False,
-                 dont_propose_devcards=False, dont_propose_trades=False):
+                 dont_propose_devcards=False, dont_propose_trades=False, lstm_size=256):
         self.base_policy = build_agent_model(device="cpu")
         self.base_policy.load_state_dict(base_policy_state_dict)
         self.player_id = player_id
         self.dummy_param = torch.empty(size=(1,), device="cpu")
 
         self.policy_type = "forward_search"
+        self.lstm_size = lstm_size
 
         self.consider_all_moves_for_opening_placement = consider_all_moves_for_opening_placement
         self.dont_propose_devcards = dont_propose_devcards
@@ -80,7 +81,7 @@ class ForwardSearchPolicy(object):
                     )
 
         if(len(self.proposed_actions) == 1):
-            return self.proposed_actions[0]
+            return self.proposed_actions[0], self.player_next_hidden_states[0]
 
         thinking_time = self.max_thinking_time * (len(self.proposed_actions) / self.max_init_actions)
 
@@ -139,7 +140,7 @@ class ForwardSearchPolicy(object):
 
         best_action_id = self._select_action(explore=False)
         print("\nDecision: {}. Action id: {}. value for best action: {:.2f} (num times selected: {})\n".format(decision_no, best_action_id, self.exploit_scores[best_action_id] / self.num_simulations_finished_each_action[best_action_id], self.num_simulations_finished_each_action[best_action_id]))
-        return self.proposed_actions[best_action_id]
+        return self.proposed_actions[best_action_id], self.player_next_hidden_states[best_action_id]
 
     def _select_action(self, explore=True):
         best_score = -np.inf

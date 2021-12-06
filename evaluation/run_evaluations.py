@@ -13,7 +13,7 @@ parser.add_argument('--evaluate-every-nth-policy', type=int, default=4)
 parser.add_argument('--evaluation-games-per-policy', type=int, default=1200)
 parser.add_argument('--evaluation-type', type=str, default="previous_policies",
                     choices=["previous_policies", "random"])
-parser.add_argument('--previous-shift', type=int, default=7)
+parser.add_argument('--previous-shift', type=int, default=5)
 
 args = parser.parse_args()
 
@@ -21,7 +21,7 @@ NUM_PROCESSES = 12
 
 if __name__ == "__main__":
     policy_files = os.listdir("../RL/results/")
-    policy_files = [file for file in policy_files if file.startswith("just_policy")]
+    policy_files = [file for file in policy_files if file.startswith("default")]
     policy_file_ids = [int(file[:-3].split("_")[-1]) for file in policy_files]
     policy_file_ids.sort()
 
@@ -73,6 +73,19 @@ if __name__ == "__main__":
         for i in range(12):
             action_types[i] = action_types.get(i, 0)
 
+        type_log_prob_tuples = []
+        for l1 in res[6]:
+            for l2 in l1:
+                type_log_prob_tuples += l2
+
+        type_prob_dict = defaultdict(lambda: 0)
+        type_prob_count = defaultdict(lambda: 0)
+        type_prob_sum = defaultdict(lambda: 0)
+        for entry in type_log_prob_tuples:
+            type_prob_count[entry[0]] += 1
+            type_prob_sum[entry[0]] += np.exp(entry[1])
+            type_prob_dict[entry[0]] = type_prob_sum[entry[0]] / type_prob_count[entry[0]]
+
         results[player_id] = {
             "win_frac": np.mean(winners == 0),
             "avg_game_length": np.mean(game_lengths),
@@ -80,7 +93,8 @@ if __name__ == "__main__":
             "avg_vps": np.mean(victory_points),
             "draw_frac": np.mean(winners == -1),
             "avg_entropy": np.mean(np.concatenate(entropies)),
-            "action_types": sorted(dict(action_types).items())
+            "action_types": sorted(dict(action_types).items()),
+            "type_log_probs": type_log_prob_tuples
         }
 
         print("{} games for policy after {} updates completed in {} seconds!".format(
@@ -97,6 +111,9 @@ if __name__ == "__main__":
         print('-----------------    DRAW FRACTION: {}'.format(results[player_id]["draw_frac"]))
         print("action types:")
         print(sorted(action_types.items()))
+        print("\n")
+        print("avg action probs sorted by type:")
+        print(sorted(type_prob_dict.items()))
         print("\n")
 
         joblib.dump(results, "evaluation_results.pt")

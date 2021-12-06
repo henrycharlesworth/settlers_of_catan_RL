@@ -51,6 +51,7 @@ class EvaluationManager(object):
 
         entropies = []
         action_types = defaultdict(lambda: 0)
+        type_prob_tuples = []
 
         while done == False:
             players_go = self._get_players_turn(self.env)
@@ -60,11 +61,12 @@ class EvaluationManager(object):
                 action_masks = self.policies[-1].act_masks_to_torch(self.env.get_action_masks())
 
                 if self.policies[self.policy_map[players_go]].policy_type == "neural_network":
-                    _, actions, _, hidden_states, entropy = self.policies[self.policy_map[players_go]].act(
+                    _, actions, action_log_probs, hidden_states, entropy = self.policies[self.policy_map[players_go]].act(
                         obs, hidden_states, terminal_mask, action_masks, deterministic=False,
                         return_entropy=True
                     )
                     entropy = entropy.detach().cpu().data.numpy()
+                    action_log_probs = action_log_probs.detach().squeeze().data.numpy()
                     actions = self.policies[-1].torch_act_to_np(actions)
                 elif self.policies[self.policy_map[players_go]].policy_type == "forward_search":
                     curr_state = self.env.save_state()
@@ -73,17 +75,19 @@ class EvaluationManager(object):
                         placing_initial_settlement = True
                     elif self.env.game.initial_settlements_placed[players_go] == 1 and self.env.game.initial_roads_placed[players_go] == 1:
                         placing_initial_settlement = True
-                    actions = self.policies[self.policy_map[players_go]].act(
+                    actions, hidden_states = self.policies[self.policy_map[players_go]].act(
                         obs, self.current_hidden_states, curr_state, action_masks, decision_no=policy_decisions,
                         initial_settlement = placing_initial_settlement
                     )
                     entropy = None
+                    action_log_probs = None
 
                 if self.policy_map[players_go] == 0:
                     policy_decisions += 1
                     entropies.append(entropy)
                     action_type = int(actions[0].ravel())
                     action_types[action_type] += 1
+                    type_prob_tuples.append((action_type, action_log_probs))
 
                 self.current_hidden_states[players_go] = hidden_states
 
@@ -96,7 +100,7 @@ class EvaluationManager(object):
 
                 total_game_steps += 1
 
-                if total_game_steps > 1500:
+                if total_game_steps > 2500:
                     DRAW = True
                     done = True
                     # print("done")
@@ -110,7 +114,7 @@ class EvaluationManager(object):
 
         # print("done")
 
-        return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types
+        return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples
 
     def _get_players_turn(self, env):
         if env.game.players_need_to_discard:

@@ -23,13 +23,16 @@ class MultiActionHeadsGeneralised(nn.Module):
             self.action_heads.append(head)
 
     def forward(self, main_input, masks, actions=None, custom_inputs=None, deterministic=False,
-                condition_on_action_type=None):
+                condition_on_action_type=None, log_specific_head_probs=False):
         head_outputs = []
         action_outputs = []
         head_log_probs_filtered = []
 
         joint_action_log_prob = 0
         entropy = 0
+
+        if log_specific_head_probs:
+            specific_log_output = []
 
         if condition_on_action_type is not None:
             type_output = torch.zeros(1, 13, dtype=torch.float32, device=self.dummy_param.device)
@@ -104,6 +107,36 @@ class MultiActionHeadsGeneralised(nn.Module):
                     head_log_prob = head_distribution.log_probs(head_action)
                 else:
                     head_log_prob = head_distribution.log_probs(actions[i])
+
+                if log_specific_head_probs:
+                    #This is just for logging/debugging evaluation episodes
+                    if i == 0:
+                        prob_to_store = np.exp(head_log_prob.squeeze().cpu().data.numpy())
+                        num_avail_acs = torch.sum(head_mask).cpu().data.numpy()
+                        specific_log_output.append(
+                            (None, i, prob_to_store, num_avail_acs)
+                        )
+                    else:
+                        action_type = action_outputs[0].squeeze().cpu().data.numpy()
+                        store_head_prob = False
+                        if (action_type == 1 or action_type == 3) and i == 1:
+                            store_head_prob = True
+                        elif (action_type == 2 and i == 2):
+                            store_head_prob = True
+                        elif (action_type == 8 and i == 3):
+                            store_head_prob = True
+                        elif (action_type == 4 and i == 4):
+                            store_head_prob = True
+                        elif (action_type == 11 and i == 6):
+                            store_head_prob = True
+
+                        if store_head_prob:
+                            prob_to_store = np.exp(head_log_prob.squeeze().cpu().data.numpy())
+                            num_avail_acs = torch.sum(head_mask).cpu().data.numpy()
+                            specific_log_output.append(
+                                (action_type, i, prob_to_store, num_avail_acs)
+                            )
+
                 log_prob_mask = torch.ones(main_input.size(0), 1, dtype=torch.float32, device=self.dummy_param.device)
                 if self.log_prob_masks[i] is not None:
                     for prev_head_ind, head_type_mask in self.log_prob_masks[i].items():
@@ -139,7 +172,9 @@ class MultiActionHeadsGeneralised(nn.Module):
                 entropy += head_entropy
                 head_log_probs_filtered.append((head_log_prob==0).float().detach())
 
-        return action_outputs, joint_action_log_prob, entropy
+        if log_specific_head_probs:
+            return action_outputs, joint_action_log_prob, entropy, specific_log_output
+        return action_outputs, joint_action_log_prob, entropy, None
 
 
 class ActionHead(nn.Module):

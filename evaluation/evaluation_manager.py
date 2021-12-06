@@ -9,7 +9,8 @@ from game.enums import PlayerId
 
 
 class EvaluationManager(object):
-    def __init__(self, policies=None, policy_kwargs={}):
+    def __init__(self, policies=None, policy_kwargs={}, detailed_logging=False):
+        self.detailed_logging = detailed_logging
 
         if policies is not None:
             self.policies = policies
@@ -53,6 +54,7 @@ class EvaluationManager(object):
         action_types = defaultdict(lambda: 0)
         type_prob_tuples = []
         values = []
+        detailed_action_outputs = []
 
         while done == False:
             players_go = self._get_players_turn(self.env)
@@ -62,10 +64,17 @@ class EvaluationManager(object):
                 action_masks = self.policies[-1].act_masks_to_torch(self.env.get_action_masks())
 
                 if self.policies[self.policy_map[players_go]].policy_type == "neural_network":
-                    value, actions, action_log_probs, hidden_states, entropy = self.policies[self.policy_map[players_go]].act(
-                        obs, hidden_states, terminal_mask, action_masks, deterministic=False,
-                        return_entropy=True
-                    )
+                    if self.detailed_logging:
+                        value, actions, action_log_probs, hidden_states, entropy, detailed_action_out = self.policies[
+                            self.policy_map[players_go]].act(
+                            obs, hidden_states, terminal_mask, action_masks, deterministic=False,
+                            return_entropy=True, log_specific_action_output=True
+                        )
+                    else:
+                        value, actions, action_log_probs, hidden_states, entropy = self.policies[self.policy_map[players_go]].act(
+                            obs, hidden_states, terminal_mask, action_masks, deterministic=False,
+                            return_entropy=True
+                        )
                     entropy = entropy.detach().cpu().data.numpy()
                     value = value.detach().squeeze().data.numpy()
                     action_log_probs = action_log_probs.detach().squeeze().data.numpy()
@@ -92,6 +101,8 @@ class EvaluationManager(object):
                     action_types[action_type] += 1
                     type_prob_tuples.append((action_type, action_log_probs))
                     values.append(value)
+                    if self.detailed_logging:
+                        detailed_action_outputs.append(detailed_action_out)
 
                 self.current_hidden_states[players_go] = hidden_states
 
@@ -116,9 +127,10 @@ class EvaluationManager(object):
 
         victory_points = self.env.curr_vps[self.order[0]]
 
-        # print("done")
-
-        return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples, values
+        if self.detailed_logging:
+            return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples, values, detailed_action_outputs
+        else:
+            return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples, values
 
     def _get_players_turn(self, env):
         if env.game.players_need_to_discard:

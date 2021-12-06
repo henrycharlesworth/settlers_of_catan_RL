@@ -78,6 +78,8 @@ if __name__ == "__main__":
             for l2 in l1:
                 type_log_prob_tuples += l2
 
+        values = np.concatenate(res[7])
+
         type_prob_dict = defaultdict(lambda: 0)
         type_prob_count = defaultdict(lambda: 0)
         type_prob_sum = defaultdict(lambda: 0)
@@ -94,7 +96,8 @@ if __name__ == "__main__":
             "draw_frac": np.mean(winners == -1),
             "avg_entropy": np.mean(np.concatenate(entropies)),
             "action_types": sorted(dict(action_types).items()),
-            "type_log_probs": type_log_prob_tuples
+            "type_log_probs": type_log_prob_tuples,
+            "values": values
         }
 
         print("{} games for policy after {} updates completed in {} seconds!".format(

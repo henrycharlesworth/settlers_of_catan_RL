@@ -40,6 +40,7 @@ def _worker(
                 policy_steps = []
                 entropies = []
                 type_probs_all = []
+                values_all = []
                 action_types_all = defaultdict(lambda: 0)
 
                 if randomise_opponent_policies_each_episode == False:
@@ -56,18 +57,19 @@ def _worker(
                                                                       random.choice(list(policy_state_dicts.values())),
                                                                       random.choice(list(policy_state_dicts.values()))]
                         evaluation_manager._update_policies(policies)
-                    winner, victory_points, total_steps, policy_decisions, entropy, action_types, type_probs = evaluation_manager.run_evaluation_game()
+                    winner, victory_points, total_steps, policy_decisions, entropy, action_types, type_probs, values = evaluation_manager.run_evaluation_game()
                     winners.append(winner)
                     num_game_steps.append(total_steps)
                     victory_points_all.append(victory_points)
                     policy_steps.append(policy_decisions)
                     entropies.append(entropy)
                     type_probs_all.append(type_probs)
+                    values_all.append(values)
 
                     for key, val in action_types.items():
                         action_types_all[key] += val
 
-                remote.send((winners, num_game_steps, victory_points_all, policy_steps, entropies, dict(action_types_all), type_probs_all))
+                remote.send((winners, num_game_steps, victory_points_all, policy_steps, entropies, dict(action_types_all), type_probs_all, values_all))
         except EOFError:
             break
 

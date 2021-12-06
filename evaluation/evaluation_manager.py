@@ -52,6 +52,7 @@ class EvaluationManager(object):
         entropies = []
         action_types = defaultdict(lambda: 0)
         type_prob_tuples = []
+        values = []
 
         while done == False:
             players_go = self._get_players_turn(self.env)
@@ -61,11 +62,12 @@ class EvaluationManager(object):
                 action_masks = self.policies[-1].act_masks_to_torch(self.env.get_action_masks())
 
                 if self.policies[self.policy_map[players_go]].policy_type == "neural_network":
-                    _, actions, action_log_probs, hidden_states, entropy = self.policies[self.policy_map[players_go]].act(
+                    value, actions, action_log_probs, hidden_states, entropy = self.policies[self.policy_map[players_go]].act(
                         obs, hidden_states, terminal_mask, action_masks, deterministic=False,
                         return_entropy=True
                     )
                     entropy = entropy.detach().cpu().data.numpy()
+                    value = value.detach().squeeze().data.numpy()
                     action_log_probs = action_log_probs.detach().squeeze().data.numpy()
                     actions = self.policies[-1].torch_act_to_np(actions)
                 elif self.policies[self.policy_map[players_go]].policy_type == "forward_search":
@@ -81,6 +83,7 @@ class EvaluationManager(object):
                     )
                     entropy = None
                     action_log_probs = None
+                    value = None
 
                 if self.policy_map[players_go] == 0:
                     policy_decisions += 1
@@ -88,6 +91,7 @@ class EvaluationManager(object):
                     action_type = int(actions[0].ravel())
                     action_types[action_type] += 1
                     type_prob_tuples.append((action_type, action_log_probs))
+                    values.append(value)
 
                 self.current_hidden_states[players_go] = hidden_states
 
@@ -114,7 +118,7 @@ class EvaluationManager(object):
 
         # print("done")
 
-        return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples
+        return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples, values
 
     def _get_players_turn(self, env):
         if env.game.players_need_to_discard:

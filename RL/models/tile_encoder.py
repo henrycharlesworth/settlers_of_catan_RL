@@ -25,11 +25,10 @@ class FeedForwardNet(nn.Module):
 class SubLayerLogic(nn.Module):
     def __init__(self, model_dimension):
         super(SubLayerLogic, self).__init__()
-        self.norm = nn.LayerNorm(model_dimension)
 
     def forward(self, rep_batch, sublayer_module):
         #residual connection
-        return rep_batch + sublayer_module(self.norm(rep_batch))
+        return rep_batch + sublayer_module(rep_batch)
 
 
 class EncoderLayer(nn.Module):
@@ -56,11 +55,10 @@ class TileEncoder(nn.Module):
         self.first_layer = nn.Linear(tile_in_dim, model_dimension)
 
         mha = MultiHeadedAttention(model_dimension, num_heads)
-        ffn = FeedForwardNet(model_dimension, width_mult=4)
+        ffn = FeedForwardNet(model_dimension, width_mult=2)
         encoder_layer = EncoderLayer(model_dimension, mha, ffn)
 
         self.encoder_layers = get_clones(encoder_layer, num_layers)
-        self.norm = nn.LayerNorm(encoder_layer.model_dimension)
 
         self.out_proj = nn.Linear(model_dimension, out_proj_dim)
         self.relu = nn.ReLU()

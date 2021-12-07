@@ -43,6 +43,10 @@ class PPO():
                 obs_dict_batch, recurrent_batch, actions_batch, action_masks_batch, value_preds_batch, returns_batch, \
                     masks_batch, old_action_log_probs_batch, adv_target = sample
 
+                if self.actor_critic.use_value_normalisation:
+                    value_preds_batch = self.actor_critic.value_normaliser.normalise(value_preds_batch)
+                    returns_batch = self.actor_critic.value_normaliser.normalise(returns_batch)
+
                 values, action_log_probs, entropy, _ = self.actor_critic.evaluate_actions(
                     obs_dict_batch, recurrent_batch, masks_batch, actions_batch, action_masks_batch
                 )

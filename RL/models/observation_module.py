@@ -38,7 +38,6 @@ class ObservationModule(nn.Module):
 
         self.final_layer = nn.Linear(19 * proj_tile_dim + 4 * 128, lstm_input_dim)
         self.relu = nn.ReLU()
-        self.norm = nn.LayerNorm(19 * proj_tile_dim + 4 * 128)
 
     def forward(self, obs_dict):
         tile_encodings = self.tile_encoder(obs_dict["tile_representations"])
@@ -51,4 +50,4 @@ class ObservationModule(nn.Module):
                                 for o_player in ["next", "next_next", "next_next_next"]]
 
         final_input = torch.cat((tile_encodings, current_player_output, *other_player_outputs), dim=-1)
-        return self.relu(self.final_layer(self.norm(final_input)))
+        return self.relu(self.final_layer(final_input))

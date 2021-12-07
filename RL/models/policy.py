@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from RL.models.utils import ValueFunctionNormaliser
+
 def init(module, weight_init, bias_init, gain=1):
     weight_init(module.weight.data, gain=gain)
     bias_init(module.bias.data)
@@ -9,11 +11,15 @@ def init(module, weight_init, bias_init, gain=1):
 
 class SettlersAgentPolicy(nn.Module):
     def __init__(self, observation_module, action_head_module, lstm_in_dim=128, lstm_layers=1, lstm_size=64,
-                 value_mlp_size=64):
+                 value_mlp_size=64, value_normalisation=True):
         super(SettlersAgentPolicy, self).__init__()
         self.dummy_param = nn.Parameter(torch.empty(0))
         self.lstm_layers = lstm_layers
         self.lstm_size = lstm_size
+
+        self.use_value_normalisation = value_normalisation
+        if value_normalisation:
+            self.value_normaliser = ValueFunctionNormaliser(mean=125.0, std=125.0)
 
         self.policy_type = "neural_network"
 
@@ -33,7 +39,7 @@ class SettlersAgentPolicy(nn.Module):
                                constant_(x, 0), np.sqrt(2))
 
         self.value_network = nn.Sequential(
-            init_(nn.Linear(lstm_size, value_mlp_size)),
+            init_(nn.Linear(lstm_size + lstm_in_dim, value_mlp_size)),
             nn.Tanh(),
             init_(nn.Linear(value_mlp_size, 1))
         )
@@ -47,8 +53,11 @@ class SettlersAgentPolicy(nn.Module):
     def base(self, obs_dict, hidden_states, done_masks):
         lstm_input = self.observation_module(obs_dict)
         lstm_output, hidden_states = self._forward_lstm(lstm_input, hidden_states, done_masks)
-        value = self.value_network(lstm_output)
-        return value, lstm_output, hidden_states
+
+        main_output = torch.cat((lstm_input, lstm_output), dim=-1)
+
+        value = self.value_network(main_output)
+        return value, main_output, hidden_states
 
     def act(self, obs_dict, hidden_states, nonterminal_masks, action_masks, deterministic=False,
             return_entropy=False, condition_on_action_type=None):
@@ -57,10 +66,10 @@ class SettlersAgentPolicy(nn.Module):
             "proposed_trade": obs_dict["proposed_trade"]
         }
 
-        value, lstm_output, hidden_states = self.base(obs_dict, hidden_states, nonterminal_masks)
+        value, main_out, hidden_states = self.base(obs_dict, hidden_states, nonterminal_masks)
 
         actions, action_log_probs, entropy = self.action_head_module(
-            main_input=lstm_output, masks=action_masks, custom_inputs=custom_inputs,
+            main_input=main_out, masks=action_masks, custom_inputs=custom_inputs,
             deterministic=deterministic, condition_on_action_type=condition_on_action_type
         )
 
@@ -75,10 +84,10 @@ class SettlersAgentPolicy(nn.Module):
             "proposed_trade": obs_dict["proposed_trade"]
         }
 
-        value, lstm_output, hidden_states = self.base(obs_dict, hidden_states, nonterminal_masks)
+        value, main_out, hidden_states = self.base(obs_dict, hidden_states, nonterminal_masks)
 
         _, action_log_probs, entropys = self.action_head_module(
-            main_input=lstm_output, masks=action_masks, custom_inputs=custom_inputs,
+            main_input=main_out, masks=action_masks, custom_inputs=custom_inputs,
             actions=actions
         )
 

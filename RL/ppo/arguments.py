@@ -19,7 +19,7 @@ def get_args():
         '--gae-lambda', type=float, default=0.95
     )
     parser.add_argument(
-        '--entropy-coef', type=float, default=0.01
+        '--entropy-coef', type=float, default=0.05
     )
     parser.add_argument(
         '--value-loss-coef', type=float, default=0.5

@@ -51,24 +51,24 @@ def build_agent_model(tile_in_dim=tile_in_dim, tile_model_dim = tile_model_dim, 
                                            tile_encoder_num_layers=tile_encoder_num_layers, proj_tile_dim=proj_tile_dim)
 
     """set up action heads"""
-    action_type_head = ActionHead(lstm_dim, ACTION_TYPE_COUNT, mlp_size=action_mlp_sizes[0], id="action_type")
-    corner_head = ActionHead(lstm_dim + 2, N_CORNERS, mlp_size=action_mlp_sizes[1], id="corner_head")# plus 2 for type
-    edge_head = ActionHead(lstm_dim, N_EDGES + 1, mlp_size=action_mlp_sizes[2], id="edge_head")
-    tile_head = ActionHead(lstm_dim, N_TILES, mlp_size=action_mlp_sizes[3], id="tile_head")
-    play_development_card_head = ActionHead(lstm_dim, PLAY_DEVELOPMENT_CARD_DIM, mlp_size=action_mlp_sizes[4],
+    action_type_head = ActionHead(lstm_dim + lstm_in_dim, ACTION_TYPE_COUNT, mlp_size=action_mlp_sizes[0], id="action_type")
+    corner_head = ActionHead(lstm_dim + lstm_in_dim + 2, N_CORNERS, mlp_size=action_mlp_sizes[1], id="corner_head")# plus 2 for type
+    edge_head = ActionHead(lstm_dim + lstm_in_dim, N_EDGES + 1, mlp_size=action_mlp_sizes[2], id="edge_head")
+    tile_head = ActionHead(lstm_dim + lstm_in_dim, N_TILES, mlp_size=action_mlp_sizes[3], id="tile_head")
+    play_development_card_head = ActionHead(lstm_dim + lstm_in_dim, PLAY_DEVELOPMENT_CARD_DIM, mlp_size=action_mlp_sizes[4],
                                             id="development_card_head")
-    accept_reject_head = ActionHead(lstm_dim, 2, custom_inputs={"proposed_trade": 2 * RESOURCE_DIM},
+    accept_reject_head = ActionHead(lstm_dim + lstm_in_dim, 2, custom_inputs={"proposed_trade": 2 * RESOURCE_DIM},
                                     mlp_size=action_mlp_sizes[5], id="accept_reject_head")
-    player_head = ActionHead(lstm_dim + 2, N_PLAYERS - 1, mlp_size=action_mlp_sizes[6], id="player_head")
-    propose_give_res_head = RecurrentResourceActionHead(lstm_dim, RESOURCE_DIM, max_count=max_propose_res,
+    player_head = ActionHead(lstm_dim + lstm_in_dim + 2, N_PLAYERS - 1, mlp_size=action_mlp_sizes[6], id="player_head")
+    propose_give_res_head = RecurrentResourceActionHead(lstm_dim + lstm_in_dim, RESOURCE_DIM, max_count=max_propose_res,
                                                         mlp_size=action_mlp_sizes[7], id="propose_give_head")
-    propose_receive_res_head = RecurrentResourceActionHead(lstm_dim + RESOURCE_DIM, RESOURCE_DIM,
+    propose_receive_res_head = RecurrentResourceActionHead(lstm_dim + lstm_in_dim + RESOURCE_DIM, RESOURCE_DIM,
                                                            max_count=max_propose_res, mlp_size=action_mlp_sizes[8],
                                                            id="propose_receive_head")
-    exchange_res_head = ActionHead(lstm_dim + 4, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[9], id="exchange_res_head")
-    receive_res_head = ActionHead(lstm_dim + 4 + RESOURCE_DIM - 1, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[10],
+    exchange_res_head = ActionHead(lstm_dim + lstm_in_dim + 4, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[9], id="exchange_res_head")
+    receive_res_head = ActionHead(lstm_dim + lstm_in_dim + 4 + RESOURCE_DIM - 1, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[10],
                                   id="receive_res_head")
-    discard_head = ActionHead(lstm_dim, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[10], id="discard_res_head")
+    discard_head = ActionHead(lstm_dim + lstm_in_dim, RESOURCE_DIM - 1, mlp_size=action_mlp_sizes[10], id="discard_res_head")
 
     action_heads = [action_type_head, corner_head, edge_head, tile_head, play_development_card_head, accept_reject_head,
                     player_head, propose_give_res_head, propose_receive_res_head, exchange_res_head, receive_res_head,

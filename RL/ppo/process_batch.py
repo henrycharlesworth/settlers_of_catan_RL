@@ -123,6 +123,9 @@ class BatchProcessor(object):
                 obs_dict_in, recurrent_hidden_states_in, masks_in
             ).reshape(self.num_steps + 1, num_proc, -1).to(self.stored_device)
 
+        if actor_critic.use_value_normalisation:
+            self.values = actor_critic.value_normaliser.denormalise(self.values)
+
         """Generalised advantage estimation"""
         gae = 0
         for step in reversed(range(self.num_steps)):

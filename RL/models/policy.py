@@ -62,7 +62,7 @@ class SettlersAgentPolicy(nn.Module):
         actions, action_log_probs, entropy, log_output = self.action_head_module(
             main_input=lstm_output, masks=action_masks, custom_inputs=custom_inputs,
             deterministic=deterministic, condition_on_action_type=condition_on_action_type,
-            log_specific_action_output=log_specific_action_output
+            log_specific_head_probs=log_specific_action_output
         )
 
         if log_specific_action_output:

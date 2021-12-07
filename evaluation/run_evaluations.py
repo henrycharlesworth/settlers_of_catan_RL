@@ -87,7 +87,7 @@ if __name__ == "__main__":
             type_prob_sum[entry[0]] += np.exp(entry[1])
             type_prob_dict[entry[0]] = type_prob_sum[entry[0]] / type_prob_count[entry[0]]
 
-        values = np.concatenate(res[7])
+        values = np.concatenate(np.concatenate(res[7]))
 
         results[player_id] = {
             "win_frac": np.mean(winners == 0),
@@ -104,8 +104,9 @@ if __name__ == "__main__":
         if DETAILED_LOGS:
             detailed_head_logs = []
             for l1 in res[8]:
-                for l2 in l2:
+                for l2 in l1:
                     detailed_head_logs += l2
+            results[player_id]["detailed_head_logs"] = detailed_head_logs
 
         print("{} games for policy after {} updates completed in {} seconds!".format(
             args.evaluation_games_per_policy,

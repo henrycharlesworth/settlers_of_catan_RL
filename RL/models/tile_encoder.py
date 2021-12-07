@@ -4,17 +4,25 @@ https://github.com/gordicaleksa/pytorch-original-transformer/blob/main/The%20Ann
 """
 
 import torch.nn as nn
+import numpy as np
 
 from RL.models.multi_headed_attention import MultiHeadedAttention
 from RL.models.utils import get_clones
 
+def init(module, weight_init, bias_init, gain=1):
+    weight_init(module.weight.data, gain=gain)
+    bias_init(module.bias.data)
+    return module
 
 class FeedForwardNet(nn.Module):
     def __init__(self, model_dimension, width_mult):
         super().__init__()
 
-        self.linear1 = nn.Linear(model_dimension, width_mult * model_dimension)
-        self.linear2 = nn.Linear(width_mult * model_dimension, model_dimension)
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
+                               constant_(x, 0), np.sqrt(2))
+
+        self.linear1 = init_(nn.Linear(model_dimension, width_mult * model_dimension))
+        self.linear2 = init_(nn.Linear(width_mult * model_dimension, model_dimension))
 
         self.relu = nn.ReLU()
 
@@ -52,7 +60,10 @@ class TileEncoder(nn.Module):
     def __init__(self, tile_in_dim, model_dimension, num_heads, num_layers, out_proj_dim):
         super(TileEncoder, self).__init__()
 
-        self.first_layer = nn.Linear(tile_in_dim, model_dimension)
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
+                               constant_(x, 0), np.sqrt(2))
+
+        self.first_layer = init_(nn.Linear(tile_in_dim, model_dimension))
 
         mha = MultiHeadedAttention(model_dimension, num_heads)
         ffn = FeedForwardNet(model_dimension, width_mult=2)
@@ -60,15 +71,9 @@ class TileEncoder(nn.Module):
 
         self.encoder_layers = get_clones(encoder_layer, num_layers)
 
-        self.out_proj = nn.Linear(model_dimension, out_proj_dim)
+        self.out_proj = init_(nn.Linear(model_dimension, out_proj_dim))
         self.relu = nn.ReLU()
 
-        self.init_params()
-
-    def init_params(self):
-        for name, p in self.named_parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
 
     def forward(self, tile_representations):
         """

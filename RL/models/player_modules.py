@@ -1,33 +1,35 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 from torch.nn.utils.rnn import pad_sequence
 
+def init(module, weight_init, bias_init, gain=1):
+    weight_init(module.weight.data, gain=gain)
+    bias_init(module.bias.data)
+    return module
 
 class CurrentPlayerModule(nn.Module):
     def __init__(self, main_input_dim, dev_card_embed_dim, dev_card_model_dim, proj_dev_card_dim):
         super(CurrentPlayerModule, self).__init__()
         self.dummy_param = nn.Parameter(torch.empty(0))
 
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
+                               constant_(x, 0), np.sqrt(2))
+
         self.main_input_dim = main_input_dim
         self.dev_card_embed_dim = dev_card_embed_dim
         self.dev_card_model_dim = dev_card_model_dim
         self.proj_dev_card_dim = proj_dev_card_dim
 
-        self.main_input_layer_1 = nn.Linear(main_input_dim, 256)
+        self.main_input_layer_1 = init_(nn.Linear(main_input_dim, 256))
         self.relu = nn.ReLU()
 
-        self.proj_hidden_dev_card = nn.Linear(dev_card_model_dim, proj_dev_card_dim)
-        self.proj_played_dev_card = nn.Linear(dev_card_model_dim, proj_dev_card_dim)
+        self.proj_hidden_dev_card = init_(nn.Linear(dev_card_model_dim, proj_dev_card_dim))
+        self.proj_played_dev_card = init_(nn.Linear(dev_card_model_dim, proj_dev_card_dim))
 
-        self.final_linear_layer = nn.Linear(2 * proj_dev_card_dim + 256, 128)
+        self.final_linear_layer = init_(nn.Linear(2 * proj_dev_card_dim + 256, 128))
 
-        self.init_params()
-
-    def init_params(self):
-        for name, p in self.named_parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
 
     def forward(self, main_input, hidden_dev_cards, played_dev_cards, dev_card_embedding, hidden_card_mha,
                 played_card_mha):
@@ -97,24 +99,21 @@ class OtherPlayersModule(nn.Module):
         super(OtherPlayersModule, self).__init__()
         self.dummy_param = nn.Parameter(torch.empty(0))
 
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
+                               constant_(x, 0), np.sqrt(2))
+
         self.main_input_dim = main_input_dim
         self.dev_card_embed_dim = dev_card_embed_dim
         self.dev_card_model_dim = dev_card_model_dim
         self.proj_dev_card_dim = proj_dev_card_dim
 
-        self.main_input_layer_1 = nn.Linear(main_input_dim, 256)
+        self.main_input_layer_1 = init_(nn.Linear(main_input_dim, 256))
         self.relu = nn.ReLU()
 
-        self.proj_played_dev_card = nn.Linear(dev_card_model_dim, proj_dev_card_dim)
+        self.proj_played_dev_card = init_(nn.Linear(dev_card_model_dim, proj_dev_card_dim))
 
-        self.final_linear_layer = nn.Linear(proj_dev_card_dim + 256, 128)
+        self.final_linear_layer = init_(nn.Linear(proj_dev_card_dim + 256, 128))
 
-        self.init_params()
-
-    def init_params(self):
-        for name, p in self.named_parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
 
     def forward(self, main_input, played_dev_cards, dev_card_embedding, played_card_mha):
         if isinstance(played_dev_cards, list):

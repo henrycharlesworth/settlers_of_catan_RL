@@ -11,8 +11,8 @@ class ValueFunctionNormaliser(nn.Module):
         self.dummy_param = nn.Parameter(torch.empty(0))
         self.mean = nn.Parameter(mean * torch.ones(1, dtype=torch.float32, device=self.dummy_param.device))
         self.std = nn.Parameter(std * torch.ones(1, dtype=torch.float32, device=self.dummy_param.device))
-        self.mean_np = self.mean.cpu().data.numpy()
-        self.std_np = self.std.cpu().data.numpy()
+        self.mean_np = float(self.mean.cpu().data.numpy())
+        self.std_np = float(self.std.cpu().data.numpy())
 
     def normalise(self, values):
         return (values - self.mean_np) / (self.std_np + 1e-4)

@@ -10,7 +10,7 @@ N_TILES = 19
 
 class EnvWrapper(object):
     def __init__(self, interactive=False, max_actions_per_turn=None, max_proposed_trades_per_turn = 4,
-                 validate_actions=True, debug_mode=False, win_reward=500, vp_reward=True, policies=None):
+                 validate_actions=True, debug_mode=False, win_reward=500, vp_reward=False, policies=None):
         if max_actions_per_turn is None:
             self.max_actions_per_turn = np.inf
         else:

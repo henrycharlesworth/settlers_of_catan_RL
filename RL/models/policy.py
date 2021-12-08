@@ -19,7 +19,7 @@ class SettlersAgentPolicy(nn.Module):
 
         self.use_value_normalisation = value_normalisation
         if value_normalisation:
-            self.value_normaliser = ValueFunctionNormaliser(mean=125.0, std=125.0)
+            self.value_normaliser = ValueFunctionNormaliser(mean=150.0, std=150.0)
 
         self.policy_type = "neural_network"
 

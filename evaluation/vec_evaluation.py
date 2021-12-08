@@ -22,12 +22,14 @@ def _worker(
         try:
             cmd, data = remote.recv()
             if cmd == "initialise_policy_pool":
-                policy_ids = data
+                policy_ids, detailed_logging = data
                 base_file_name = "../RL/results/default_after_update_"
                 for id in policy_ids:
                     file_name = base_file_name + str(id) + ".pt"
                     state_dict = torch.load(file_name, map_location="cpu")
                     policy_state_dicts[id] = state_dict
+
+                evaluation_manager.detailed_logging = detailed_logging
                 remote.send(True)
             elif cmd == "run_eval_episodes":
                 num_episodes, player_id, other_player_ids = data
@@ -42,6 +44,7 @@ def _worker(
                 type_probs_all = []
                 values_all = []
                 action_types_all = defaultdict(lambda: 0)
+                detailed_action_output = []
 
                 if randomise_opponent_policies_each_episode == False:
                     policies = [policy_state_dicts[player_id],
@@ -57,7 +60,11 @@ def _worker(
                                                                       random.choice(list(policy_state_dicts.values())),
                                                                       random.choice(list(policy_state_dicts.values()))]
                         evaluation_manager._update_policies(policies)
-                    winner, victory_points, total_steps, policy_decisions, entropy, action_types, type_probs, values = evaluation_manager.run_evaluation_game()
+                    if evaluation_manager.detailed_logging:
+                        winner, victory_points, total_steps, policy_decisions, entropy, action_types, type_probs, values, detailed_action_out = evaluation_manager.run_evaluation_game()
+                        detailed_action_output.append(detailed_action_out)
+                    else:
+                        winner, victory_points, total_steps, policy_decisions, entropy, action_types, type_probs, values = evaluation_manager.run_evaluation_game()
                     winners.append(winner)
                     num_game_steps.append(total_steps)
                     victory_points_all.append(victory_points)
@@ -69,7 +76,10 @@ def _worker(
                     for key, val in action_types.items():
                         action_types_all[key] += val
 
-                remote.send((winners, num_game_steps, victory_points_all, policy_steps, entropies, dict(action_types_all), type_probs_all, values_all))
+                if evaluation_manager.detailed_logging:
+                    remote.send((winners, num_game_steps, victory_points_all, policy_steps, entropies, dict(action_types_all), type_probs_all, values_all, detailed_action_output))
+                else:
+                    remote.send((winners, num_game_steps, victory_points_all, policy_steps, entropies, dict(action_types_all), type_probs_all, values_all))
         except EOFError:
             break
 
@@ -95,9 +105,9 @@ class SubProcEvaluationManager(object):
             self.processes.append(process)
             work_remote.close()
 
-    def initialise_policy_pool(self, policy_ids):
+    def initialise_policy_pool(self, policy_ids, detailed_logging=False):
         for remote in self.remotes:
-            remote.send(("initialise_policy_pool", policy_ids))
+            remote.send(("initialise_policy_pool", (policy_ids, detailed_logging)))
         results = [remote.recv() for remote in self.remotes]
         return results
 

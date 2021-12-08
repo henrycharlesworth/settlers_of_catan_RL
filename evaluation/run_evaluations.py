@@ -18,6 +18,7 @@ parser.add_argument('--previous-shift', type=int, default=5)
 args = parser.parse_args()
 
 NUM_PROCESSES = 12
+DETAILED_LOGS = True
 
 if __name__ == "__main__":
     policy_files = os.listdir("../RL/results/")
@@ -39,7 +40,7 @@ if __name__ == "__main__":
         make_evaluation_manager() for _ in range(NUM_PROCESSES)
     ]
     evaluation_manager = SubProcEvaluationManager(eval_manager_fns)
-    evaluation_manager.initialise_policy_pool(policy_file_ids)
+    evaluation_manager.initialise_policy_pool(policy_file_ids, DETAILED_LOGS)
 
     for i, player_id in enumerate(policies_to_evaluate_ids):
         t1 = time.time()
@@ -78,8 +79,6 @@ if __name__ == "__main__":
             for l2 in l1:
                 type_log_prob_tuples += l2
 
-        values = np.concatenate(res[7])
-
         type_prob_dict = defaultdict(lambda: 0)
         type_prob_count = defaultdict(lambda: 0)
         type_prob_sum = defaultdict(lambda: 0)
@@ -87,6 +86,8 @@ if __name__ == "__main__":
             type_prob_count[entry[0]] += 1
             type_prob_sum[entry[0]] += np.exp(entry[1])
             type_prob_dict[entry[0]] = type_prob_sum[entry[0]] / type_prob_count[entry[0]]
+
+        values = np.concatenate(np.concatenate(res[7]))
 
         results[player_id] = {
             "win_frac": np.mean(winners == 0),
@@ -99,6 +100,13 @@ if __name__ == "__main__":
             "type_log_probs": type_log_prob_tuples,
             "values": values
         }
+
+        if DETAILED_LOGS:
+            detailed_head_logs = []
+            for l1 in res[8]:
+                for l2 in l1:
+                    detailed_head_logs += l2
+            results[player_id]["detailed_head_logs"] = detailed_head_logs
 
         print("{} games for policy after {} updates completed in {} seconds!".format(
             args.evaluation_games_per_policy,
@@ -119,4 +127,4 @@ if __name__ == "__main__":
         print(sorted(type_prob_dict.items()))
         print("\n")
 
-        joblib.dump(results, "evaluation_results.pt")
+        joblib.dump(results, "evaluation_results_updated.pt")

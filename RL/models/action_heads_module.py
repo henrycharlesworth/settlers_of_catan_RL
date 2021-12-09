@@ -119,9 +119,9 @@ class MultiActionHeadsGeneralised(nn.Module):
                     else:
                         action_type = action_outputs[0].squeeze().cpu().data.numpy()
                         store_head_prob = False
-                        if (action_type == 1 or action_type == 3) and i == 1:
+                        if (action_type == 0 or action_type == 2) and i == 1:
                             store_head_prob = True
-                        elif (action_type == 2 and i == 2):
+                        elif (action_type == 1 and i == 2):
                             store_head_prob = True
                         elif (action_type == 8 and i == 3):
                             store_head_prob = True

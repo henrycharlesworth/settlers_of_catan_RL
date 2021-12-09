@@ -62,6 +62,7 @@ def _worker(
                         evaluation_manager._update_policies(policies)
                     if evaluation_manager.detailed_logging:
                         winner, victory_points, total_steps, policy_decisions, entropy, action_types, type_probs, values, detailed_action_out = evaluation_manager.run_evaluation_game()
+                        detailed_action_out = [item for sublist in detailed_action_out for item in sublist]
                         detailed_action_output.append(detailed_action_out)
                     else:
                         winner, victory_points, total_steps, policy_decisions, entropy, action_types, type_probs, values = evaluation_manager.run_evaluation_game()

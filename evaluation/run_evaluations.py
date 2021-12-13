@@ -10,14 +10,14 @@ from evaluation.vec_evaluation import SubProcEvaluationManager
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--evaluate-every-nth-policy', type=int, default=4)
-parser.add_argument('--evaluation-games-per-policy', type=int, default=4)
+parser.add_argument('--evaluation-games-per-policy', type=int, default=600)
 parser.add_argument('--evaluation-type', type=str, default="previous_policies",
                     choices=["previous_policies", "random"])
 parser.add_argument('--previous-shift', type=int, default=5)
 
 args = parser.parse_args()
 
-NUM_PROCESSES = 1
+NUM_PROCESSES = 12
 DETAILED_LOGS = True
 
 if __name__ == "__main__":
@@ -127,4 +127,4 @@ if __name__ == "__main__":
         print(sorted(type_prob_dict.items()))
         print("\n")
 
-        joblib.dump(results, "evaluation_results_updated.pt")
+        joblib.dump(results, "evaluation_results_updated2.pt")

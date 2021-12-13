@@ -111,10 +111,11 @@ class MultiActionHeadsGeneralised(nn.Module):
                 if log_specific_head_probs:
                     #This is just for logging/debugging evaluation episodes
                     if i == 0:
+                        actual_action = int(head_action.squeeze().cpu().data.numpy())
                         prob_to_store = np.exp(head_log_prob.squeeze().cpu().data.numpy())
                         num_avail_acs = torch.sum(head_mask).cpu().data.numpy()
                         specific_log_output.append(
-                            (None, i, prob_to_store, int(num_avail_acs))
+                            (None, i, prob_to_store, int(num_avail_acs), actual_action)
                         )
                     else:
                         action_type = action_outputs[0].squeeze().cpu().data.numpy()
@@ -131,10 +132,11 @@ class MultiActionHeadsGeneralised(nn.Module):
                             store_head_prob = True
 
                         if store_head_prob:
+                            actual_action = int(head_action.squeeze().cpu().data.numpy())
                             prob_to_store = np.exp(head_log_prob.squeeze().cpu().data.numpy())
                             num_avail_acs = torch.sum(head_mask).cpu().data.numpy()
                             specific_log_output.append(
-                                (int(action_type), i, prob_to_store, int(num_avail_acs))
+                                (int(action_type), i, prob_to_store, int(num_avail_acs), actual_action)
                             )
 
                 log_prob_mask = torch.ones(main_input.size(0), 1, dtype=torch.float32, device=self.dummy_param.device)

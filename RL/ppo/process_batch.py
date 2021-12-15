@@ -177,7 +177,7 @@ class BatchProcessor(object):
         for indices in sampler:
             obs_dict_batch = {}
             for key in self.obs_keys:
-                obs_dict_batch[key] = self.obs_dict[key][:-1].view(-1, *self.obs_dict[key].size()[2:])[indices]
+                obs_dict_batch[key] = self.obs_dict[key][:-1].view(-1, *self.obs_dict[key].size()[2:])[indices].to(self.device)
             recurrent_hidden_states_batch = None
 
             actions_batch = [[] for _ in range(self.num_action_heads)]
@@ -185,16 +185,16 @@ class BatchProcessor(object):
 
             for i in range(self.num_action_heads):
                 if i in self.type_conditional_masks:
-                    action_masks_batch[i] = self.action_masks[i].view(self.action_masks[i].size()[0], -1, *self.action_masks[i].size()[3:])[:, indices, ...]
+                    action_masks_batch[i] = self.action_masks[i].view(self.action_masks[i].size()[0], -1, *self.action_masks[i].size()[3:])[:, indices, ...].to(self.device)
                 else:
-                    action_masks_batch[i] = self.action_masks[i].view(-1, *self.action_masks[i].size()[2:])[indices]
-                actions_batch[i] = self.actions[i].view(-1, *self.actions[i].size()[2:])[indices]
+                    action_masks_batch[i] = self.action_masks[i].view(-1, *self.action_masks[i].size()[2:])[indices].to(self.device)
+                actions_batch[i] = self.actions[i].view(-1, *self.actions[i].size()[2:])[indices].to(self.device)
 
-            value_preds_batch = self.values[:-1].view(-1, 1)[indices]
-            returns_batch = self.returns.view(-1, 1)[indices]
-            masks_batch = self.masks[:-1].view(-1, 1)[indices]
-            old_action_log_probs_batch = self.action_log_probs.view(-1, 1)[indices]
-            adv_targets = self.advantages.view(-1, 1)[indices]
+            value_preds_batch = self.values[:-1].view(-1, 1)[indices].to(self.device)
+            returns_batch = self.returns.view(-1, 1)[indices].to(self.device)
+            masks_batch = self.masks[:-1].view(-1, 1)[indices].to(self.device)
+            old_action_log_probs_batch = self.action_log_probs.view(-1, 1)[indices].to(self.device)
+            adv_targets = self.advantages.view(-1, 1)[indices].to(self.device)
 
             yield obs_dict_batch, recurrent_hidden_states_batch, actions_batch, action_masks_batch, value_preds_batch, \
                   returns_batch, masks_batch, old_action_log_probs_batch, adv_targets

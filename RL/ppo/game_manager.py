@@ -161,6 +161,9 @@ class GamesAndPoliciesManager(object):
     def _update_policy(self, policy_dict, policy_id=0):
         self.policies[policy_id].load_state_dict(policy_dict)
 
+    def _update_annealing_factor(self, annealing_factor):
+        for env in self.envs:
+            env.reward_annealing_factor = annealing_factor
 
 def make_game_manager(num_envs, num_steps):
     def _thunk():

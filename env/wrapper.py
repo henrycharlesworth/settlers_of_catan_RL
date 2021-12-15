@@ -10,7 +10,7 @@ N_TILES = 19
 
 class EnvWrapper(object):
     def __init__(self, interactive=False, max_actions_per_turn=None, max_proposed_trades_per_turn = 4,
-                 validate_actions=True, debug_mode=False, win_reward=500, vp_reward=False, policies=None):
+                 validate_actions=True, debug_mode=False, win_reward=500, dense_reward=False, policies=None):
         if max_actions_per_turn is None:
             self.max_actions_per_turn = np.inf
         else:
@@ -24,7 +24,8 @@ class EnvWrapper(object):
         self.game = Game(interactive=interactive, debug_mode=debug_mode, policies=policies)
 
         self.win_reward = win_reward
-        self.vp_reward = vp_reward
+        self.dense_reward = dense_reward
+        self.reward_annealing_factor = 1.0
 
     def reset(self):
         self.game.reset()
@@ -42,7 +43,7 @@ class EnvWrapper(object):
 
         obs = self._get_obs()
 
-        done, reward = self._get_done_and_rewards()
+        done, reward = self._get_done_and_rewards(action)
 
         info = {"log": message}
 
@@ -81,7 +82,7 @@ class EnvWrapper(object):
 
         return obs
 
-    def _get_done_and_rewards(self):
+    def _get_done_and_rewards(self, action):
         done = False
         rewards = {player: 0 for player in [PlayerId.White, PlayerId.Red, PlayerId.Blue, PlayerId.Orange]}
         for id, player in self.game.players.items():
@@ -91,8 +92,18 @@ class EnvWrapper(object):
         updated_vps = {}
         for player_id in [PlayerId.Blue, PlayerId.Orange, PlayerId.Red, PlayerId.White]:
             updated_vps[player_id] = self.game.players[player_id].victory_points
-            if self.vp_reward:
-                rewards[player_id] += (updated_vps[player_id] - self.curr_vps[player_id])
+            if self.dense_reward:
+                rewards[player_id] += 5 * (updated_vps[player_id] - self.curr_vps[player_id])
+                if action[0] == ActionTypes.PlayDevelopmentCard:
+                    rewards[player_id] += 5
+                if action[0] == ActionTypes.MoveRobber:
+                    rewards[player_id] += 1
+                if action[0] == ActionTypes.DiscardResource:
+                    rewards[player_id] -= 0.3
+                if action[0] == ActionTypes.UpgradeToCity:
+                    rewards[player_id] += 2.5
+
+                rewards[player_id] *= self.reward_annealing_factor
         self.curr_vps = updated_vps
 
         if done:
@@ -263,9 +274,11 @@ class EnvWrapper(object):
             valid_actions[0][ActionTypes.ExchangeResource] = 1.0
             valid_actions[9][0] = valid_resources_to_exchange
             valid_actions[10] = valid_resources_to_receive
-        #move robber - no tile constraints
+        #move robber
         if self.game.can_move_robber:
+            valid_tiles = self._get_valid_robber_locations()
             valid_actions[0][ActionTypes.MoveRobber] = 1.0
+            valid_actions[3] = valid_tiles
         #propose trade
         total_res = sum(resources.values())
         if self.max_proposed_trades_per_turn is None:
@@ -291,6 +304,20 @@ class EnvWrapper(object):
                 if corner.building.owner == player.id:
                     valid_corners[i] = 1.0
         return valid_corners
+
+    def _get_valid_robber_locations(self):
+        valid_tiles = np.zeros((N_TILES,))
+        curr_player = self.game.players_go
+
+        for i, tile in enumerate(self.game.board.tiles):
+            valid = False
+            for key in tile.corners.keys():
+                if tile.corners[key].building is not None and tile.corners[key].building != curr_player:
+                    valid = True
+                    break
+            if valid:
+                valid_tiles[i] = 1.0
+        return valid_tiles
 
     def _get_valid_road_locations(self, player, road_building=False):
         valid_edges = np.zeros((N_EDGES+1,))

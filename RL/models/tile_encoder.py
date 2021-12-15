@@ -33,10 +33,11 @@ class FeedForwardNet(nn.Module):
 class SubLayerLogic(nn.Module):
     def __init__(self, model_dimension):
         super(SubLayerLogic, self).__init__()
+        self.norm = nn.LayerNorm(model_dimension)
 
     def forward(self, rep_batch, sublayer_module):
         #residual connection
-        return rep_batch + sublayer_module(rep_batch)
+        return rep_batch + sublayer_module(self.norm(rep_batch))
 
 
 class EncoderLayer(nn.Module):
@@ -70,6 +71,8 @@ class TileEncoder(nn.Module):
         encoder_layer = EncoderLayer(model_dimension, mha, ffn)
 
         self.encoder_layers = get_clones(encoder_layer, num_layers)
+        self.norm = nn.LayerNorm(out_proj_dim)
+        self.norm_2 = nn.LayerNorm(model_dimension)
 
         self.out_proj = init_(nn.Linear(model_dimension, out_proj_dim))
         self.relu = nn.ReLU()
@@ -81,9 +84,9 @@ class TileEncoder(nn.Module):
         """
         batch_size = tile_representations.shape[0]
 
-        tile_representations = self.relu(self.first_layer(tile_representations))
+        tile_representations = self.relu(self.norm_2(self.first_layer(tile_representations)))
         for encoder_layer in self.encoder_layers:
             tile_representations = encoder_layer(tile_representations)
 
-        tile_rep_final = self.out_proj(tile_representations)
-        return tile_rep_final.reshape(batch_size, -1)
+        tile_rep_final = self.norm(self.out_proj(tile_representations))
+        return self.relu(tile_rep_final.reshape(batch_size, -1))

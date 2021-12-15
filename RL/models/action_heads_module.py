@@ -181,22 +181,30 @@ class MultiActionHeadsGeneralised(nn.Module):
 
 class ActionHead(nn.Module):
     def __init__(self, main_input_dim, output_dim, custom_inputs={}, type="categorical", mlp_size=None,
-                 returns_distribution=True, id=None):
+                 returns_distribution=True, custom_out_size=0, id=None):
         super(ActionHead, self).__init__()
-        self.input_dim = main_input_dim
+        self.input_dim = main_input_dim + custom_out_size
+
+        custom_in_dim = 0
         for name, size in custom_inputs.items():
-            self.input_dim += size
+            custom_in_dim += size
         self.output_dim = output_dim
         self.type = type
         self.mlp_size = mlp_size
         self.returns_distribution = returns_distribution
         self.custom_inputs = custom_inputs
         self.id = id
-        if mlp_size is None:
-            dist_input_size = self.input_dim
-        else:
-            self.mlp = nn.Linear(self.input_dim, mlp_size)
-            dist_input_size = mlp_size
+
+        if custom_in_dim > 0:
+            self.custom_mlp = nn.Linear(custom_in_dim, custom_out_size)
+            self.custom_norm = nn.LayerNorm(custom_out_size)
+
+        self.mlp_1 = nn.Linear(self.input_dim, mlp_size)
+        self.mlp_2 = nn.Linear(mlp_size, mlp_size)
+        self.norm = nn.LayerNorm(mlp_size)
+        self.relu = nn.ReLU()
+
+        dist_input_size = mlp_size
         if type == "categorical":
             self.distribution = Categorical(num_inputs=dist_input_size, num_outputs=output_dim)
         elif type == "normal":
@@ -207,13 +215,12 @@ class ActionHead(nn.Module):
     def forward(self, main_input, mask, custom_inputs):
         if custom_inputs is not None and len(self.custom_inputs) > 0:
             input_custom = torch.cat([custom_inputs[key] for key in self.custom_inputs.keys()], dim=-1)
-            input_full = torch.cat([main_input, input_custom], dim=-1)
+            custom_out = self.relu(self.custom_norm(self.custom_mlp(input_custom)))
+            input_full = torch.cat([main_input, custom_out], dim=-1)
         else:
             input_full = main_input
-        if self.mlp_size is not None:
-            head_input = self.mlp(input_full)
-        else:
-            head_input = input_full
+
+        head_input = self.mlp_2(self.relu(self.norm(self.mlp_1(input_full))))
 
         if self.type == "normal":
             return self.distribution(head_input)
@@ -237,13 +244,14 @@ class RecurrentResourceActionHead(nn.Module):
         self.mask_based_on_curr_res = mask_based_on_curr_res
         self.input_dim = main_input_dim + available_resources_dim
         self.id = id
-        for name, size in custom_inputs.items():
-            self.input_dim += size
-        if mlp_size is None:
-            dist_input_size = self.input_dim
-        else:
-            self.mlp = nn.Linear(self.input_dim, mlp_size)
-            dist_input_size = mlp_size
+
+
+        self.mlp_1 = nn.Linear(self.input_dim, mlp_size)
+        self.mlp_2 = nn.Linear(mlp_size, mlp_size)
+        self.norm = nn.LayerNorm(mlp_size)
+        self.relu = nn.ReLU()
+
+        dist_input_size = mlp_size
 
         self.distribution = Categorical(num_inputs=dist_input_size, num_outputs=available_resources_dim)
 
@@ -268,8 +276,7 @@ class RecurrentResourceActionHead(nn.Module):
             count = self.max_count
         for i in range(count):
             input = torch.cat((main_inputs, output), dim=-1)
-            if self.mlp_size is not None:
-                input = self.mlp(input)
+            input = self.mlp_2(self.relu(self.norm(self.mlp_1(input))))
             distribution = self.distribution(input, mask)
 
             if deterministic:

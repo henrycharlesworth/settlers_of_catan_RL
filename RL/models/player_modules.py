@@ -25,6 +25,12 @@ class CurrentPlayerModule(nn.Module):
         self.main_input_layer_1 = init_(nn.Linear(main_input_dim, 256))
         self.relu = nn.ReLU()
 
+        self.norm = nn.LayerNorm(dev_card_model_dim)
+        self.norm_1 = nn.LayerNorm(256)
+        self.norm_2 = nn.LayerNorm(proj_dev_card_dim)
+        self.norm_3 = nn.LayerNorm(proj_dev_card_dim)
+        self.norm_4 = nn.LayerNorm(128)
+
         self.proj_hidden_dev_card = init_(nn.Linear(dev_card_model_dim, proj_dev_card_dim))
         self.proj_played_dev_card = init_(nn.Linear(dev_card_model_dim, proj_dev_card_dim))
 
@@ -52,8 +58,8 @@ class CurrentPlayerModule(nn.Module):
         for b in range(main_input.shape[0]):
             hidden_dev_card_masks[b, ..., :hidden_dev_cards_lengths[b]] = 1.0
 
-        hidden_dev_representations = hidden_card_mha(hidden_dev_card_embeddings, hidden_dev_card_embeddings,
-                                                                hidden_dev_card_embeddings, hidden_dev_card_masks)
+        hidden_dev_representations = self.norm(hidden_card_mha(hidden_dev_card_embeddings, hidden_dev_card_embeddings,
+                                                                hidden_dev_card_embeddings, hidden_dev_card_masks))
         hidden_dev_card_masks = hidden_dev_card_masks.squeeze(1).transpose(-1, -2).long()
         hidden_dev_representations[hidden_dev_card_masks.repeat(1, 1, hidden_dev_representations.shape[-1]) == 0] = 0.0
         # hidden_dev_out = torch.cat((
@@ -61,7 +67,7 @@ class CurrentPlayerModule(nn.Module):
         #     hidden_dev_representations.sum(dim=1)
         # ), dim=-1)
         hidden_dev_out = hidden_dev_representations.sum(dim=1)
-        hidden_dev_out = self.proj_hidden_dev_card(hidden_dev_out)
+        hidden_dev_out = self.relu(self.norm_2(self.proj_hidden_dev_card(hidden_dev_out)))
 
         if isinstance(played_dev_cards, list):
             played_dev_card_lengths = [len(played_cards) for played_cards in played_dev_cards]
@@ -77,8 +83,8 @@ class CurrentPlayerModule(nn.Module):
         for b in range(main_input.shape[0]):
             played_dev_card_masks[b, ..., :played_dev_card_lengths[b]] = 1.0
 
-        played_dev_representations = played_card_mha(played_dev_card_embeddings, played_dev_card_embeddings,
-                                                                played_dev_card_embeddings,played_dev_card_masks)
+        played_dev_representations = self.norm(played_card_mha(played_dev_card_embeddings, played_dev_card_embeddings,
+                                                                played_dev_card_embeddings,played_dev_card_masks))
         played_dev_card_masks = played_dev_card_masks.squeeze(1).transpose(-1, -2).long()
         played_dev_representations[played_dev_card_masks.repeat(1, 1, played_dev_representations.shape[-1]) == 0] = 0.0
         # played_dev_out = torch.cat((
@@ -86,12 +92,12 @@ class CurrentPlayerModule(nn.Module):
         #     played_dev_representations.sum(dim=1)
         # ), dim=-1)
         played_dev_out = played_dev_representations.sum(dim=1)
-        played_dev_out = self.proj_played_dev_card(played_dev_out)
+        played_dev_out = self.relu(self.norm_3(self.proj_played_dev_card(played_dev_out)))
 
-        main_input = self.relu(self.main_input_layer_1(main_input))
+        main_input = self.relu(self.norm_1(self.main_input_layer_1(main_input)))
 
         final_input = torch.cat((main_input, played_dev_out, hidden_dev_out), dim=-1)
-        return self.relu(self.final_linear_layer(final_input))
+        return self.relu(self.norm_4(self.final_linear_layer(final_input)))
 
 
 class OtherPlayersModule(nn.Module):
@@ -114,6 +120,11 @@ class OtherPlayersModule(nn.Module):
 
         self.final_linear_layer = init_(nn.Linear(proj_dev_card_dim + 256, 128))
 
+        self.norm = nn.LayerNorm(dev_card_model_dim)
+        self.norm_1 = nn.LayerNorm(256)
+        self.norm_2 = nn.LayerNorm(proj_dev_card_dim)
+        self.norm_3 = nn.LayerNorm(128)
+
 
     def forward(self, main_input, played_dev_cards, dev_card_embedding, played_card_mha):
         if isinstance(played_dev_cards, list):
@@ -130,8 +141,8 @@ class OtherPlayersModule(nn.Module):
         for b in range(main_input.shape[0]):
             played_dev_card_masks[b, ..., :played_dev_card_lengths[b]] = 1.0
 
-        played_dev_representations = played_card_mha(played_dev_card_embeddings, played_dev_card_embeddings,
-                                                               played_dev_card_embeddings, played_dev_card_masks)
+        played_dev_representations = self.norm(played_card_mha(played_dev_card_embeddings, played_dev_card_embeddings,
+                                                               played_dev_card_embeddings, played_dev_card_masks))
         played_dev_card_masks = played_dev_card_masks.squeeze(1).transpose(-1, -2).long()
         played_dev_representations[played_dev_card_masks.repeat(1, 1, played_dev_representations.shape[-1]) == 0] = 0.0
         # played_dev_out = torch.cat((
@@ -139,9 +150,9 @@ class OtherPlayersModule(nn.Module):
         #     played_dev_representations.sum(dim=1)
         # ), dim=-1)
         played_dev_out = played_dev_representations.sum(dim=1)
-        played_dev_out = self.proj_played_dev_card(played_dev_out)
+        played_dev_out = self.relu(self.norm_2(self.proj_played_dev_card(played_dev_out)))
 
-        main_input = self.relu(self.main_input_layer_1(main_input))
+        main_input = self.relu(self.norm_1(self.main_input_layer_1(main_input)))
 
         final_input = torch.cat((main_input, played_dev_out), dim=-1)
-        return self.relu(self.final_linear_layer(final_input))
+        return self.relu(self.norm_3(self.final_linear_layer(final_input)))

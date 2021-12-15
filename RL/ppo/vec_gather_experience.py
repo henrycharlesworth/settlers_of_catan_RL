@@ -35,7 +35,9 @@ def _worker(
                 state_dict = data[0].var
                 policy_id = data[1]
                 game_manager._update_policy(state_dict, policy_id)
-
+                remote.send(True)
+            elif cmd == "update_annealing_factor":
+                game_manager._update_annealing_factor(data)
                 remote.send(True)
             elif cmd == "seed":
                 np.random.seed(data)
@@ -97,6 +99,12 @@ class SubProcGameManager(object):
         else:
             self.remotes[process_id].send(("update_policy", (CloudpickleWrapper(state_dict), policy_id)))
             results = self.remotes[process_id].recv()
+        return results
+
+    def update_annealing_factor(self, annealing_factor):
+        for remote in self.remotes:
+            remote.send(("update_annealing_factor", annealing_factor))
+        results = [remote.recv() for remote in self.remotes]
         return results
 
     def reset(self):

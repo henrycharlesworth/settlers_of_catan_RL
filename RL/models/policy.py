@@ -10,12 +10,13 @@ def init(module, weight_init, bias_init, gain=1):
     return module
 
 class SettlersAgentPolicy(nn.Module):
-    def __init__(self, observation_module, action_head_module, lstm_in_dim=128, lstm_layers=1, lstm_size=64,
-                 value_mlp_size=64, value_normalisation=True):
+    def __init__(self, observation_module, action_head_module, observation_out_dim=128, include_lstm=False, lstm_size=256,
+                 value_mlp_sizes=[256, 128], value_normalisation=True):
         super(SettlersAgentPolicy, self).__init__()
         self.dummy_param = nn.Parameter(torch.empty(0))
-        self.lstm_layers = lstm_layers
+        self.include_lstm = include_lstm
         self.lstm_size = lstm_size
+        self.observation_out_dim = observation_out_dim
 
         self.use_value_normalisation = value_normalisation
         if value_normalisation:
@@ -31,33 +32,41 @@ class SettlersAgentPolicy(nn.Module):
 
         self.observation_module = observation_module
 
-        self.lstm = nn.LSTM(num_layers=lstm_layers, hidden_size=lstm_size, input_size=lstm_in_dim, batch_first=False)
+        action_head_input_dim = observation_out_dim
+
+        if include_lstm:
+            self.lstm = nn.LSTM(num_layers=1, hidden_size=lstm_size, input_size=observation_out_dim, batch_first=False)
+            for name, param in self.lstm.named_parameters():
+                if 'bias' in name:
+                    nn.init.constant_(param, 0)
+                elif 'weight' in name:
+                    nn.init.orthogonal_(param)
+
+            action_head_input_dim += lstm_size
 
         self.action_head_module = action_head_module
 
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0), np.sqrt(2))
 
-        self.value_network = nn.Sequential(
-            init_(nn.Linear(lstm_size + lstm_in_dim, value_mlp_size)),
-            nn.Tanh(),
-            init_(nn.Linear(value_mlp_size, 1))
-        )
+        self.relu = nn.ReLU()
 
-        for name, param in self.lstm.named_parameters():
-            if 'bias' in name:
-                nn.init.constant_(param, 0)
-            elif 'weight' in name:
-                nn.init.orthogonal_(param)
+        self.value_network_fc_1 = nn.Linear(action_head_input_dim, value_mlp_sizes[0])
+        self.value_network_fc_2 = nn.Linear(value_mlp_sizes[0], value_mlp_sizes[1])
+        self.value_out = nn.Linear(value_mlp_sizes[1], 1)
+        self.v_norm_1 = nn.LayerNorm(value_mlp_sizes[0])
+        self.v_norm_2 = nn.LayerNorm(value_mlp_sizes[1])
+
 
     def base(self, obs_dict, hidden_states, done_masks):
-        lstm_input = self.observation_module(obs_dict)
-        lstm_output, hidden_states = self._forward_lstm(lstm_input, hidden_states, done_masks)
+        observation_out = self.observation_module(obs_dict)
 
-        main_output = torch.cat((lstm_input, lstm_output), dim=-1)
+        if self.include_lstm:
+            lstm_output, hidden_states = self._forward_lstm(observation_out, hidden_states, done_masks)
+            observation_out = torch.cat((observation_out, lstm_output), dim=-1)
 
-        value = self.value_network(main_output)
-        return value, main_output, hidden_states
+        value = self.value_out(self.relu(self.v_norm_2(self.value_network_fc_2(self.relu(self.v_norm_1(self.value_network_fc_1(observation_out)))))))
+        return value, observation_out, hidden_states
 
     def act(self, obs_dict, hidden_states, nonterminal_masks, action_masks, deterministic=False,
             return_entropy=False, condition_on_action_type=None, log_specific_action_output=False):

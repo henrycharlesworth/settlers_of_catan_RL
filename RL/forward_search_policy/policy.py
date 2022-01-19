@@ -27,6 +27,12 @@ class ForwardSearchPolicy(object):
         self.policy_type = "forward_search"
         self.lstm_size = lstm_size
 
+        self.standard_obs_keys = ["proposed_trade", "current_resources", "current_player_main", "next_player_main",
+                                  "next_next_player_main", "next_next_next_player_main"]
+        self.list_int_obs_keys = ["current_player_played_dev", "current_player_hidden_dev",
+                                  "next_player_played_dev", "next_next_player_played_dev",
+                                  "next_next_next_player_played_dev"]
+
         self.consider_all_moves_for_opening_placement = consider_all_moves_for_opening_placement
         self.dont_propose_devcards = dont_propose_devcards
         self.dont_propose_trades = dont_propose_trades
@@ -172,3 +178,36 @@ class ForwardSearchPolicy(object):
 
     def eval(self):
         return
+
+    def obs_to_torch(self, obs):
+        for key in self.standard_obs_keys:
+            obs[key] = torch.tensor(obs[key], dtype=torch.float32, device=self.dummy_param.device)
+            if len(obs[key].shape) == 1:
+                obs[key] = obs[key].unsqueeze(0)
+        for key in self.list_int_obs_keys:
+            if isinstance(obs[key][0], list):
+                for k in range(len(obs[key])):
+                    obs[key][k] = torch.tensor(obs[key][k], dtype=torch.long, device=self.dummy_param.device)
+            else:
+                obs[key] = [torch.tensor(obs[key], dtype=torch.long, device=self.dummy_param.device)]
+        obs["tile_representations"] = torch.tensor(obs["tile_representations"], dtype=torch.float32,
+                                                   device=self.dummy_param.device)
+        if len(obs["tile_representations"].shape) == 2:
+            obs["tile_representations"] = obs["tile_representations"].unsqueeze(0)
+        return obs
+
+    def act_masks_to_torch(self, masks):
+        for z in range(len(masks)):
+            masks[z] = torch.tensor(masks[z], dtype=torch.float32, device=self.dummy_param.device).unsqueeze(0)
+            if z == 1 or z == 6 or z == 9:
+                masks[z] = torch.transpose(masks[z], 0, 1)
+        return masks
+
+    def torch_act_to_np(self, action):
+        for z in range(len(action)):
+            if isinstance(action[z], list):
+                for p in range(len(action[z])):
+                    action[z][p] = action[z][p].squeeze().cpu().data.numpy()
+            else:
+                action[z] = action[z].squeeze().cpu().data.numpy()
+        return action

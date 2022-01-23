@@ -4,7 +4,7 @@ import torch
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--lr', type=float, default=3e-4
+        '--lr', type=float, default=2.3568e-4
     )
     parser.add_argument(
         '--use-linear-lr-decay', action='store_true', default=True
@@ -19,22 +19,22 @@ def get_args():
         '--gae-lambda', type=float, default=0.95
     )
     parser.add_argument(
-        '--entropy-coef-start', type=float, default=0.04
+        '--entropy-coef-start', type=float, default=0.005
     )
     parser.add_argument(
-        '--entropy-coef-final', type=float, default=0.005
+        '--entropy-coef-final', type=float, default=0.015
     )
     parser.add_argument(
-        '--entropy-coef-start-anneal', type=int, default=500
+        '--entropy-coef-start-anneal', type=int, default=0
     )
     parser.add_argument(
-        '--entropy-coef-end-anneal', type=int, default=1500
+        '--entropy-coef-end-anneal', type=int, default=250
     )
     parser.add_argument(
-        '--dense-reward-anneal-start', type=int, default=1000
+        '--dense-reward-anneal-start', type=int, default=0
     )
     parser.add_argument(
-        '--dense-reward-anneal-end', type=int, default=2000
+        '--dense-reward-anneal-end', type=int, default=250
     )
     parser.add_argument(
         '--value-loss-coef', type=float, default=1.0

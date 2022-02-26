@@ -52,7 +52,7 @@ def main():
     central_policy = build_agent_model(device=device)
 
     if args.load_from_checkpoint:
-        central_policy_sd, earlier_policies, eval_logs, start_update, args = torch.load("RL/results/"+args.load_file_path)
+        central_policy_sd, earlier_policies, eval_logs, start_update, args, entropy_coef, rew_anneal_fac = torch.load("RL/results/"+args.load_file_path)
         update_opponent_policies(earlier_policies, rollout_manager, args)
         central_policy.load_state_dict(central_policy_sd)
         central_policy.to("cpu")
@@ -65,8 +65,12 @@ def main():
         central_policy.to(device)
         start_update = 0
         eval_logs = []
+        entropy_coef = args.entropy_coef_start
+        rew_anneal_fac = 1.0
 
     update_num = start_update
+    curr_entropy_coef = entropy_coef
+    curr_reward_weight = rew_anneal_fac
 
     random_policy_model = build_agent_model()
     random_policy = copy.deepcopy(random_policy_model.state_dict())
@@ -75,6 +79,9 @@ def main():
     rollout_storage = BatchProcessor(args, central_policy.lstm_size, device=device)
 
     agent = PPO(central_policy, args)
+
+    agent.entropy_coef = curr_entropy_coef
+    rollout_manager.update_annealing_factor(curr_reward_weight)
 
     eval_manager_fns = [
         make_evaluation_manager() for _ in range(args.num_eval_processes)
@@ -86,7 +93,7 @@ def main():
     steps_per_update = int(args.num_steps * args.num_processes * args.num_envs_per_process)
 
     def run_update():
-        global update_num
+        global update_num, curr_entropy_coef, curr_reward_weight
 
         if args.use_linear_lr_decay:
             utils.update_linear_schedule(agent.optimiser, update_num, num_updates, args.lr)
@@ -101,7 +108,7 @@ def main():
         central_policy.to(device)
 
         #anneal dense reward/ entropy coef
-        if update_num > args.entropy_coef_start_anneal:
+        if update_num > args.entropy_coef_start_anneal and update_num <= args.entropy_coef_end_anneal:
             start_update = args.entropy_coef_start_anneal
             end_update = args.entropy_coef_end_anneal
             start_value = args.entropy_coef_start
@@ -109,12 +116,14 @@ def main():
 
             value = start_value + ((update_num - start_update) / (end_update - start_update)) * (end_value - start_value)
             agent.entropy_coef = value
+            curr_entropy_coef = value
 
-        if update_num > args.dense_reward_anneal_start:
+        if update_num > args.dense_reward_anneal_start and update_num <= args.dense_reward_anneal_end:
             start_update = args.dense_reward_anneal_start
             end_update = args.dense_reward_anneal_end
             value = 1.0 + ((update_num - start_update) / (end_update - start_update)) * (0.0 - 1.0)
             rollout_manager.update_annealing_factor(value)
+            curr_reward_weight = value
 
         t_current = time.time()
         print(
@@ -133,7 +142,7 @@ def main():
 
         if update_num % args.eval_every == 0 and update_num > 0:
             log, print_summary = run_evaluation_protocol(evaluation_manager, central_policy, earlier_policies,
-                                                         random_policy, args, update_num)
+                                                         random_policy, args, update_num, curr_entropy_coef, curr_reward_weight)
             eval_logs.append(log)
 
             print(print_summary)

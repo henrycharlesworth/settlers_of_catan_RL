@@ -1,6 +1,7 @@
 import random
 import torch
 from collections import defaultdict
+import numpy as np
 
 from RL.models.build_agent_model import build_agent_model
 from env.wrapper import EnvWrapper
@@ -128,9 +129,9 @@ class EvaluationManager(object):
         victory_points = self.env.curr_vps[self.order[0]]
 
         if self.detailed_logging:
-            return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples, values, detailed_action_outputs
+            return winner, victory_points, total_game_steps, policy_decisions, np.mean(entropies), action_types, type_prob_tuples, np.mean(values), detailed_action_outputs
         else:
-            return winner, victory_points, total_game_steps, policy_decisions, entropies, action_types, type_prob_tuples, values
+            return winner, victory_points, total_game_steps, policy_decisions, np.mean(entropies), action_types, type_prob_tuples, np.mean(values)
 
     def _get_players_turn(self, env):
         if env.game.players_need_to_discard:

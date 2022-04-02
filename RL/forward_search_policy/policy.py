@@ -17,7 +17,7 @@ from game.enums import PlayerId
 class ForwardSearchPolicy(object):
     def __init__(self, base_policy_state_dict, sample_actions_fn, max_init_actions=10, max_depth=20,
                  max_thinking_time=10, gamma=0.999, num_subprocesses=11, subprocess_start_method=None,
-                 player_id=None, zero_opponent_hidden_states=False, consider_all_moves_for_opening_placement=False,
+                 player_id=None, zero_opponent_hidden_states=True, consider_all_moves_for_opening_placement=False,
                  dont_propose_devcards=False, dont_propose_trades=False, lstm_size=256):
         self.base_policy = build_agent_model(device="cpu")
         self.base_policy.load_state_dict(base_policy_state_dict)
@@ -145,7 +145,7 @@ class ForwardSearchPolicy(object):
                 self.workers_ready_to_simulate.append(worker_id)
 
         best_action_id = self._select_action(explore=False)
-        print("\nDecision: {}. Action id: {}. value for best action: {:.2f} (num times selected: {})\n".format(decision_no, best_action_id, self.exploit_scores[best_action_id] / self.num_simulations_finished_each_action[best_action_id], self.num_simulations_finished_each_action[best_action_id]))
+        # print("\nDecision: {}. Action id: {}. value for best action: {:.2f} (num times selected: {})\n".format(decision_no, best_action_id, self.exploit_scores[best_action_id] / self.num_simulations_finished_each_action[best_action_id], self.num_simulations_finished_each_action[best_action_id]))
         return self.proposed_actions[best_action_id], self.player_next_hidden_states[best_action_id]
 
     def _select_action(self, explore=True):

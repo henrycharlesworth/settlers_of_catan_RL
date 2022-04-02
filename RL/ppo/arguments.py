@@ -31,10 +31,10 @@ def get_args():
         '--entropy-coef-end-anneal', type=int, default=1500
     )
     parser.add_argument(
-        '--dense-reward-anneal-start', type=int, default=1000
+        '--dense-reward-anneal-start', type=int, default=-1
     )
     parser.add_argument(
-        '--dense-reward-anneal-end', type=int, default=2000
+        '--dense-reward-anneal-end', type=int, default=-1
     )
     parser.add_argument(
         '--value-loss-coef', type=float, default=1.0

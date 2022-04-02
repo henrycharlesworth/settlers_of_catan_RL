@@ -17,7 +17,7 @@ from game.enums import PlayerId
 class ForwardSearchPolicy(object):
     def __init__(self, base_policy_state_dict, sample_actions_fn, max_init_actions=10, max_depth=20,
                  max_thinking_time=10, gamma=0.999, num_subprocesses=11, subprocess_start_method=None,
-                 player_id=None, zero_opponent_hidden_states=False, consider_all_moves_for_opening_placement=False,
+                 player_id=None, zero_opponent_hidden_states=True, consider_all_moves_for_opening_placement=False,
                  dont_propose_devcards=False, dont_propose_trades=False, lstm_size=256):
         self.base_policy = build_agent_model(device="cpu")
         self.base_policy.load_state_dict(base_policy_state_dict)
@@ -26,6 +26,12 @@ class ForwardSearchPolicy(object):
 
         self.policy_type = "forward_search"
         self.lstm_size = lstm_size
+
+        self.standard_obs_keys = ["proposed_trade", "current_resources", "current_player_main", "next_player_main",
+                                  "next_next_player_main", "next_next_next_player_main"]
+        self.list_int_obs_keys = ["current_player_played_dev", "current_player_hidden_dev",
+                                  "next_player_played_dev", "next_next_player_played_dev",
+                                  "next_next_next_player_played_dev"]
 
         self.consider_all_moves_for_opening_placement = consider_all_moves_for_opening_placement
         self.dont_propose_devcards = dont_propose_devcards
@@ -139,7 +145,7 @@ class ForwardSearchPolicy(object):
                 self.workers_ready_to_simulate.append(worker_id)
 
         best_action_id = self._select_action(explore=False)
-        print("\nDecision: {}. Action id: {}. value for best action: {:.2f} (num times selected: {})\n".format(decision_no, best_action_id, self.exploit_scores[best_action_id] / self.num_simulations_finished_each_action[best_action_id], self.num_simulations_finished_each_action[best_action_id]))
+        # print("\nDecision: {}. Action id: {}. value for best action: {:.2f} (num times selected: {})\n".format(decision_no, best_action_id, self.exploit_scores[best_action_id] / self.num_simulations_finished_each_action[best_action_id], self.num_simulations_finished_each_action[best_action_id]))
         return self.proposed_actions[best_action_id], self.player_next_hidden_states[best_action_id]
 
     def _select_action(self, explore=True):
@@ -172,3 +178,36 @@ class ForwardSearchPolicy(object):
 
     def eval(self):
         return
+
+    def obs_to_torch(self, obs):
+        for key in self.standard_obs_keys:
+            obs[key] = torch.tensor(obs[key], dtype=torch.float32, device=self.dummy_param.device)
+            if len(obs[key].shape) == 1:
+                obs[key] = obs[key].unsqueeze(0)
+        for key in self.list_int_obs_keys:
+            if isinstance(obs[key][0], list):
+                for k in range(len(obs[key])):
+                    obs[key][k] = torch.tensor(obs[key][k], dtype=torch.long, device=self.dummy_param.device)
+            else:
+                obs[key] = [torch.tensor(obs[key], dtype=torch.long, device=self.dummy_param.device)]
+        obs["tile_representations"] = torch.tensor(obs["tile_representations"], dtype=torch.float32,
+                                                   device=self.dummy_param.device)
+        if len(obs["tile_representations"].shape) == 2:
+            obs["tile_representations"] = obs["tile_representations"].unsqueeze(0)
+        return obs
+
+    def act_masks_to_torch(self, masks):
+        for z in range(len(masks)):
+            masks[z] = torch.tensor(masks[z], dtype=torch.float32, device=self.dummy_param.device).unsqueeze(0)
+            if z == 1 or z == 6 or z == 9:
+                masks[z] = torch.transpose(masks[z], 0, 1)
+        return masks
+
+    def torch_act_to_np(self, action):
+        for z in range(len(action)):
+            if isinstance(action[z], list):
+                for p in range(len(action[z])):
+                    action[z][p] = action[z][p].squeeze().cpu().data.numpy()
+            else:
+                action[z] = action[z].squeeze().cpu().data.numpy()
+        return action

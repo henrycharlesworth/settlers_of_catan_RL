@@ -2,7 +2,9 @@ import itertools
 import torch
 import numpy as np
 
+from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torch.nn.utils.rnn import pad_sequence
+
 from RL.ppo.utils import _flatten_helper, _flatten_helper_reshape
 
 OBS_KEYS = ["proposed_trade", "current_resources", "tile_representations", "current_player_main",
@@ -110,8 +112,11 @@ class BatchProcessor(object):
         end_inds = np.minimum(start_inds + max_processes_at_once, self.num_parallel)
         for i in range(len(start_inds)):
             num_proc = end_inds[i] - start_inds[i]
-            recurrent_hidden_states_in = (_flatten_helper_reshape(self.num_steps+1, num_proc, self.hidden_states[0][:, start_inds[i]:end_inds[i], ...]).to(self.device),
-                                          _flatten_helper_reshape(self.num_steps+1, num_proc, self.hidden_states[1][:, start_inds[i]:end_inds[i], ...]).to(self.device))
+            if actor_critic.include_lstm:
+                recurrent_hidden_states_in = (_flatten_helper_reshape(self.num_steps+1, num_proc, self.hidden_states[0][:, start_inds[i]:end_inds[i], ...]).to(self.device),
+                                              _flatten_helper_reshape(self.num_steps+1, num_proc, self.hidden_states[1][:, start_inds[i]:end_inds[i], ...]).to(self.device))
+            else:
+                recurrent_hidden_states_in = None
 
             obs_dict_in = {}
             for key in self.obs_keys:
@@ -122,6 +127,9 @@ class BatchProcessor(object):
             self.values[:, start_inds[i]:end_inds[i], :] = actor_critic.get_value(
                 obs_dict_in, recurrent_hidden_states_in, masks_in
             ).reshape(self.num_steps + 1, num_proc, -1).to(self.stored_device)
+
+        if actor_critic.use_value_normalisation:
+            self.values = actor_critic.value_normaliser.denormalise(self.values)
 
         """Generalised advantage estimation"""
         gae = 0
@@ -134,113 +142,65 @@ class BatchProcessor(object):
         self.advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
 
 
-    def compute_advantages(self, actor_critic):
+    # def compute_advantages(self, actor_critic):
+    #
+    #     recurrent_hidden_states_in = (_flatten_helper(self.num_steps+1, self.num_parallel, self.hidden_states[0]),
+    #                                _flatten_helper(self.num_steps+1, self.num_parallel, self.hidden_states[1]))
+    #     obs_dict_in = {}
+    #     for key in self.obs_keys:
+    #         obs_dict_in[key] = _flatten_helper(self.num_steps+1, self.num_parallel, self.obs_dict[key])
+    #     masks_in = _flatten_helper(self.num_steps+1, self.num_parallel, self.masks)
+    #
+    #     self.values = actor_critic.get_value(
+    #         obs_dict_in, recurrent_hidden_states_in, masks_in
+    #     ).view(self.num_steps + 1, self.num_parallel, -1)
+    #     self.returns = torch.zeros_like(self.rewards, device=self.device)
+    #
+    #     """Generalised advantage estimation"""
+    #     gae = 0
+    #     for step in reversed(range(self.num_steps)):
+    #         delta = self.rewards[step] + self.args.gamma * self.values[step + 1] * self.masks[step + 1] - self.values[step]
+    #         gae = delta + self.args.gamma * self.args.gae_lambda * self.masks[step + 1] *  gae
+    #         self.returns[step] = gae + self.values[step]
+    #
+    #     advantages = self.returns - self.values[:-1]
+    #     self.advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
 
-        recurrent_hidden_states_in = (_flatten_helper(self.num_steps+1, self.num_parallel, self.hidden_states[0]),
-                                   _flatten_helper(self.num_steps+1, self.num_parallel, self.hidden_states[1]))
-        obs_dict_in = {}
-        for key in self.obs_keys:
-            obs_dict_in[key] = _flatten_helper(self.num_steps+1, self.num_parallel, self.obs_dict[key])
-        masks_in = _flatten_helper(self.num_steps+1, self.num_parallel, self.masks)
+    def generator_standard(self, num_mini_batch):
+        batch_size = self.num_steps * self.num_parallel
+        mini_batch_size = batch_size // num_mini_batch
 
-        self.values = actor_critic.get_value(
-            obs_dict_in, recurrent_hidden_states_in, masks_in
-        ).view(self.num_steps + 1, self.num_parallel, -1)
-        self.returns = torch.zeros_like(self.rewards, device=self.device)
+        sampler = BatchSampler(
+            SubsetRandomSampler(range(batch_size)), mini_batch_size, drop_last=True
+        )
 
-        """Generalised advantage estimation"""
-        gae = 0
-        for step in reversed(range(self.num_steps)):
-            delta = self.rewards[step] + self.args.gamma * self.values[step + 1] * self.masks[step + 1] - self.values[step]
-            gae = delta + self.args.gamma * self.args.gae_lambda * self.masks[step + 1] *  gae
-            self.returns[step] = gae + self.values[step]
-
-        advantages = self.returns - self.values[:-1]
-        self.advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
-
-    def generator(self, num_mini_batch):
-        assert self.num_parallel >= num_mini_batch
-        num_envs_per_batch = self.num_parallel // num_mini_batch
-        perm = torch.randperm(self.num_parallel)
-
-        for start_ind in range(0, self.num_parallel, num_envs_per_batch):
+        for indices in sampler:
             obs_dict_batch = {}
             for key in self.obs_keys:
-                obs_dict_batch[key] = []
+                obs_dict_batch[key] = self.obs_dict[key][:-1].view(-1, *self.obs_dict[key].size()[2:])[indices].to(self.device)
+            recurrent_hidden_states_batch = None
 
-            recurrent_hidden_state_batch = [[], []]
             actions_batch = [[] for _ in range(self.num_action_heads)]
             action_masks_batch = [[] for _ in range(self.num_action_heads)]
-            value_preds_batch = []
-            returns_batch = []
-            masks_batch = []
-            old_action_log_probs_batch = []
-            adv_targets = []
-
-            for offset in range(num_envs_per_batch):
-                ind = perm[start_ind + offset]
-                for key in self.obs_keys:
-                    obs_dict_batch[key].append(self.obs_dict[key][:-1, ind])
-
-                recurrent_hidden_state_batch[0].append(self.hidden_states[0][0:1, ind])
-                recurrent_hidden_state_batch[1].append(self.hidden_states[1][0:1, ind])
-
-                for i in range(self.num_action_heads):
-                    actions_batch[i].append(self.actions[i][:, ind])
-                    if i in self.type_conditional_masks:
-                        action_masks_batch[i].append(self.action_masks[i][:, :, ind])
-                    else:
-                        action_masks_batch[i].append(self.action_masks[i][:, ind])
-
-                value_preds_batch.append(self.values[:-1, ind])
-                returns_batch.append(self.returns[:, ind])
-                masks_batch.append(self.masks[:-1, ind])
-                old_action_log_probs_batch.append(self.action_log_probs[:, ind])
-                adv_targets.append(self.advantages[:, ind])
-
-            #all tensors of size (num_steps, num_parallel, -1)
-            for key in self.obs_keys:
-                obs_dict_batch[key] = torch.stack(obs_dict_batch[key], 1)
-
-            recurrent_hidden_state_batch[0] = torch.stack(recurrent_hidden_state_batch[0], 1).view(num_envs_per_batch, -1).to(self.device)
-            recurrent_hidden_state_batch[1] = torch.stack(recurrent_hidden_state_batch[1], 1).view(num_envs_per_batch, -1).to(self.device)
 
             for i in range(self.num_action_heads):
-                actions_batch[i] = torch.stack(actions_batch[i], 1)
                 if i in self.type_conditional_masks:
-                    action_masks_batch[i] = torch.stack(action_masks_batch[i], 2)
+                    action_masks_batch[i] = self.action_masks[i].view(self.action_masks[i].size()[0], -1, *self.action_masks[i].size()[3:])[:, indices, ...].to(self.device)
                 else:
-                    action_masks_batch[i] = torch.stack(action_masks_batch[i], 1)
+                    action_masks_batch[i] = self.action_masks[i].view(-1, *self.action_masks[i].size()[2:])[indices].to(self.device)
+                actions_batch[i] = self.actions[i].view(-1, *self.actions[i].size()[2:])[indices].to(self.device)
 
-            value_preds_batch = torch.stack(value_preds_batch, 1)
-            returns_batch = torch.stack(returns_batch, 1)
-            masks_batch = torch.stack(masks_batch, 1)
-            old_action_log_probs_batch = torch.stack(old_action_log_probs_batch, 1)
-            adv_targets = torch.stack(adv_targets, 1)
+            value_preds_batch = self.values[:-1].view(-1, 1)[indices].to(self.device)
+            returns_batch = self.returns.view(-1, 1)[indices].to(self.device)
+            masks_batch = self.masks[:-1].view(-1, 1)[indices].to(self.device)
+            old_action_log_probs_batch = self.action_log_probs.view(-1, 1)[indices].to(self.device)
+            adv_targets = self.advantages.view(-1, 1)[indices].to(self.device)
 
-            #flatten
-            for key in self.obs_keys:
-                obs_dict_batch[key] = _flatten_helper(self.num_steps, num_envs_per_batch, obs_dict_batch[key]).to(self.device)
-
-            for i in range(self.num_action_heads):
-                actions_batch[i] = _flatten_helper(self.num_steps, num_envs_per_batch, actions_batch[i]).to(self.device)
-                if i in self.type_conditional_masks:
-                    num_types = action_masks_batch[i].shape[0]
-                    T, N = action_masks_batch[i].shape[1], action_masks_batch[i].shape[2]
-                    action_masks_batch[i] = action_masks_batch[i].view(num_types, T*N, -1).to(self.device)
-                else:
-                    action_masks_batch[i] = _flatten_helper(self.num_steps, num_envs_per_batch, action_masks_batch[i]).to(self.device)
-
-            value_preds_batch = _flatten_helper(self.num_steps, num_envs_per_batch, value_preds_batch).to(self.device)
-            returns_batch = _flatten_helper(self.num_steps, num_envs_per_batch, returns_batch).to(self.device)
-            masks_batch = _flatten_helper(self.num_steps, num_envs_per_batch, masks_batch).to(self.device)
-            old_action_log_probs_batch = _flatten_helper(self.num_steps, num_envs_per_batch, old_action_log_probs_batch).to(self.device)
-            adv_targets = _flatten_helper(self.num_steps, num_envs_per_batch, adv_targets).to(self.device)
-
-            yield obs_dict_batch, recurrent_hidden_state_batch, actions_batch, action_masks_batch, value_preds_batch, \
+            yield obs_dict_batch, recurrent_hidden_states_batch, actions_batch, action_masks_batch, value_preds_batch, \
                   returns_batch, masks_batch, old_action_log_probs_batch, adv_targets
 
-    def generator_alt(self, num_mini_batch, total_batch_size, truncated_seq_len):
+
+    def generator_lstm(self, num_mini_batch, total_batch_size, truncated_seq_len):
         T = self.num_steps
         num_parallel = self.num_parallel
         assert T % truncated_seq_len == 0

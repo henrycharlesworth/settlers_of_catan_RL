@@ -12,7 +12,7 @@ def worker(remote: mp.connection.Connection, parent_remote: mp.connection.Connec
 
     torch.set_num_threads(1)
 
-    env = EnvWrapper()
+    env = EnvWrapper(dense_reward=True)
     env.reset()
     policy = build_agent_model(device="cpu")
 
@@ -88,6 +88,9 @@ def run_simulation_forward(env, policy, player_id, init_action, init_player_hs, 
         value, action, _, next_hidden_state = policy.act(
             obs, hidden_state, terminal_mask, action_masks
         )
+
+        if policy.use_value_normalisation:
+            value = policy.value_normaliser.denormalise(value)
 
         curr_hidden_states[players_go] = copy.copy(next_hidden_state)
 

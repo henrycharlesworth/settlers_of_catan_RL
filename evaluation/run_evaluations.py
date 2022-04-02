@@ -10,15 +10,15 @@ from evaluation.vec_evaluation import SubProcEvaluationManager
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--evaluate-every-nth-policy', type=int, default=4)
-parser.add_argument('--evaluation-games-per-policy', type=int, default=600)
+parser.add_argument('--evaluation-games-per-policy', type=int, default=320)
 parser.add_argument('--evaluation-type', type=str, default="previous_policies",
                     choices=["previous_policies", "random"])
 parser.add_argument('--previous-shift', type=int, default=5)
 
 args = parser.parse_args()
 
-NUM_PROCESSES = 12
-DETAILED_LOGS = True
+NUM_PROCESSES = 32
+DETAILED_LOGS = False
 
 if __name__ == "__main__":
     policy_files = os.listdir("../RL/results/")
@@ -87,7 +87,7 @@ if __name__ == "__main__":
             type_prob_sum[entry[0]] += np.exp(entry[1])
             type_prob_dict[entry[0]] = type_prob_sum[entry[0]] / type_prob_count[entry[0]]
 
-        values = np.concatenate(np.concatenate(res[7]))
+        # values = np.concatenate(np.concatenate(res[7]))
 
         results[player_id] = {
             "win_frac": np.mean(winners == 0),
@@ -95,10 +95,9 @@ if __name__ == "__main__":
             "avg_pol_decisions": np.mean(policy_steps),
             "avg_vps": np.mean(victory_points),
             "draw_frac": np.mean(winners == -1),
-            "avg_entropy": np.mean(np.concatenate(entropies)),
+            "avg_entropy": np.mean(entropies),
             "action_types": sorted(dict(action_types).items()),
             "type_log_probs": type_log_prob_tuples,
-            "values": values
         }
 
         if DETAILED_LOGS:
@@ -127,4 +126,4 @@ if __name__ == "__main__":
         print(sorted(type_prob_dict.items()))
         print("\n")
 
-        joblib.dump(results, "evaluation_results_updated2.pt")
+        joblib.dump(results, "evaluation_results.pt")

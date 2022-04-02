@@ -4,17 +4,25 @@ https://github.com/gordicaleksa/pytorch-original-transformer/blob/main/The%20Ann
 """
 
 import torch.nn as nn
+import numpy as np
 
 from RL.models.multi_headed_attention import MultiHeadedAttention
 from RL.models.utils import get_clones
 
+def init(module, weight_init, bias_init, gain=1):
+    weight_init(module.weight.data, gain=gain)
+    bias_init(module.bias.data)
+    return module
 
 class FeedForwardNet(nn.Module):
     def __init__(self, model_dimension, width_mult):
         super().__init__()
 
-        self.linear1 = nn.Linear(model_dimension, width_mult * model_dimension)
-        self.linear2 = nn.Linear(width_mult * model_dimension, model_dimension)
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
+                               constant_(x, 0), np.sqrt(2))
+
+        self.linear1 = init_(nn.Linear(model_dimension, width_mult * model_dimension))
+        self.linear2 = init_(nn.Linear(width_mult * model_dimension, model_dimension))
 
         self.relu = nn.ReLU()
 
@@ -53,24 +61,22 @@ class TileEncoder(nn.Module):
     def __init__(self, tile_in_dim, model_dimension, num_heads, num_layers, out_proj_dim):
         super(TileEncoder, self).__init__()
 
-        self.first_layer = nn.Linear(tile_in_dim, model_dimension)
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
+                               constant_(x, 0), np.sqrt(2))
+
+        self.first_layer = init_(nn.Linear(tile_in_dim, model_dimension))
 
         mha = MultiHeadedAttention(model_dimension, num_heads)
-        ffn = FeedForwardNet(model_dimension, width_mult=4)
+        ffn = FeedForwardNet(model_dimension, width_mult=2)
         encoder_layer = EncoderLayer(model_dimension, mha, ffn)
 
         self.encoder_layers = get_clones(encoder_layer, num_layers)
-        self.norm = nn.LayerNorm(encoder_layer.model_dimension)
+        self.norm = nn.LayerNorm(out_proj_dim)
+        self.norm_2 = nn.LayerNorm(model_dimension)
 
-        self.out_proj = nn.Linear(model_dimension, out_proj_dim)
+        self.out_proj = init_(nn.Linear(model_dimension, out_proj_dim))
         self.relu = nn.ReLU()
 
-        self.init_params()
-
-    def init_params(self):
-        for name, p in self.named_parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
 
     def forward(self, tile_representations):
         """
@@ -78,9 +84,9 @@ class TileEncoder(nn.Module):
         """
         batch_size = tile_representations.shape[0]
 
-        tile_representations = self.relu(self.first_layer(tile_representations))
+        tile_representations = self.relu(self.norm_2(self.first_layer(tile_representations)))
         for encoder_layer in self.encoder_layers:
             tile_representations = encoder_layer(tile_representations)
 
-        tile_rep_final = self.out_proj(tile_representations)
-        return tile_rep_final.reshape(batch_size, -1)
+        tile_rep_final = self.norm(self.out_proj(tile_representations))
+        return self.relu(tile_rep_final.reshape(batch_size, -1))

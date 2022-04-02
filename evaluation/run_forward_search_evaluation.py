@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--base-policy-file', type=str, required=True)
 parser.add_argument('--max-thinking-time', type=float, default=10.0)
 parser.add_argument('--gamma', type=float, default=0.999)
-parser.add_argument('--num-subprocesses', type=int, default=1)
+parser.add_argument('--num-subprocesses', type=int, default=32)
 parser.add_argument('--num-games', type=int, default=100)
 parser.add_argument('--max-init-actions', type=int, default=10)
 parser.add_argument('--max-depth', type=int, default=15)
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     action_types_all = defaultdict(lambda: 0)
 
     for i in range(args.num_games):
-        winner, victory_points, total_steps, policy_decisions, _, action_types = evaluation_manager.run_evaluation_game()
+        winner, victory_points, total_steps, policy_decisions, _, action_types, _, _ = evaluation_manager.run_evaluation_game()
 
         winners_all.append(winner)
         num_game_steps_all.append(total_steps)

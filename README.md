@@ -24,9 +24,9 @@ which will give you a game where you control all players. To play against three 
 here 3825 refers to the file "default_after_update_3825.pt" included in RL/results. In general if you run training the agent
 should be saved at regular intervals and you could change 3825 to the number of updates the agent has been trained for.
 
-To play against the "forward search" agent:
+To play against three "forward search" agents:
 
-`python play.py --policy1 "human" --policy2 "forward_search_3825" --policy3 "RL_3825" --policy4 "RL_3825"`
+`python play.py --policy1 "human" --policy2 "forward_search_3825" --policy3 "forward_search_3825" --policy4 "forward_search_3825"`
 
 where here the forward search agent will be built on top of the RL policy after 3825 updates. There are other arguments that can be
 configured for the forward search agent as well - ideally you want to set `--num-processes` to as many CPU cores as you have available,
